@@ -34,7 +34,7 @@ class ImageItem:
         }
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "ImageItem":
+    def from_dict(cls, value: dict[str, Any]) -> ImageItem:
         """Construct an image item from serialized data."""
         return cls(
             image_id=value["image_id"],
@@ -78,7 +78,7 @@ class PairComparison:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "PairComparison":
+    def from_dict(cls, value: dict[str, Any]) -> PairComparison:
         """Construct a pair comparison from serialized data."""
         transform = value.get("transform")
         normalized_transform = None
@@ -103,7 +103,7 @@ class ImageCluster:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "ImageCluster":
+    def from_dict(cls, value: dict[str, Any]) -> ImageCluster:
         """Construct a cluster from serialized data."""
         return cls(
             cluster_id=value["cluster_id"],
@@ -179,13 +179,11 @@ class ClusteringResult:
             "input_root": str(self.input_root) if self.input_root is not None else None,
             "images": [image.to_dict() for image in self.images],
             "clusters": [cluster.to_dict() for cluster in self.clusters],
-            "comparisons": [
-                comparison.to_dict() for comparison in self.comparisons
-            ],
+            "comparisons": [comparison.to_dict() for comparison in self.comparisons],
         }
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "ClusteringResult":
+    def from_dict(cls, value: dict[str, Any]) -> ClusteringResult:
         """Construct a clustering result from serialized data."""
         if value.get("schema_version") != 1:
             raise ValueError(
@@ -196,9 +194,7 @@ class ClusteringResult:
             config_fingerprint=value["config_fingerprint"],
             input_root=Path(input_root) if input_root is not None else None,
             images=tuple(ImageItem.from_dict(item) for item in value["images"]),
-            clusters=tuple(
-                ImageCluster.from_dict(item) for item in value["clusters"]
-            ),
+            clusters=tuple(ImageCluster.from_dict(item) for item in value["clusters"]),
             comparisons=tuple(
                 PairComparison.from_dict(item) for item in value["comparisons"]
             ),

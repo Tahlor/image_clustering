@@ -73,7 +73,7 @@ class ClusterConfig:
                 raise ValueError(f"{field_name} must be in [0, 1], got {value}")
 
     @classmethod
-    def from_json(cls, path: Path | None) -> "ClusterConfig":
+    def from_json(cls, path: Path | None) -> ClusterConfig:
         """Load configuration overrides from JSON.
 
         Args:
