@@ -24,4 +24,13 @@ jobs:
         with:
           name: ruff-${{ matrix.python-version }}
           path: ruff.txt
+      - name: Upload source snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-${{ matrix.python-version }}
+          path: |
+            src
+            tests
+            pyproject.toml
       - run: python -m pytest -q
