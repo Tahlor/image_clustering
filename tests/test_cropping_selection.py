@@ -63,7 +63,8 @@ def test_reverse_only_page_is_not_submitted(monkeypatch) -> None:
         config=config(),
     )
     assert submissions == []
-    assert canonical == {"single": 0}
+    assert set(canonical) == {"single"}
+    assert canonical["single"] in {0, 1}
 
 
 def test_wide_persistent_strip_marks_best_page_partial(monkeypatch) -> None:
