@@ -45,8 +45,7 @@ def page_boxes(
     """Return conservative page boxes in one reference frame."""
     height, width = shape
     outer = round(
-        float(config.get("pages.outer_margin_fraction", 0.018))
-        * min(height, width)
+        float(config.get("pages.outer_margin_fraction", 0.018)) * min(height, width)
     )
     if gutter is None:
         return [("single", (outer, outer, width - outer, height - outer))]
@@ -95,9 +94,7 @@ def expand_to_sheet_boundary(
     px0, py0, px1, py1 = page_bbox
     page_width = px1 - px0
     page_height = py1 - py0
-    search_fraction = float(
-        config.get("sheet_expansion.search_padding_fraction", 0.20)
-    )
+    search_fraction = float(config.get("sheet_expansion.search_padding_fraction", 0.20))
     max_fraction = float(config.get("sheet_expansion.max_expansion_fraction", 0.38))
     search = (
         max(px0, x0 - round(search_fraction * page_width)),
@@ -110,12 +107,8 @@ def expand_to_sheet_boundary(
     if roi.size == 0:
         return support_bbox
     blurred = cv2.GaussianBlur(roi, (5, 5), 0)
-    gradient_x = np.abs(
-        cv2.Sobel(blurred, cv2.CV_32F, 1, 0, ksize=3)
-    ).mean(axis=0)
-    gradient_y = np.abs(
-        cv2.Sobel(blurred, cv2.CV_32F, 0, 1, ksize=3)
-    ).mean(axis=1)
+    gradient_x = np.abs(cv2.Sobel(blurred, cv2.CV_32F, 1, 0, ksize=3)).mean(axis=0)
+    gradient_y = np.abs(cv2.Sobel(blurred, cv2.CV_32F, 0, 1, ksize=3)).mean(axis=1)
     smooth_fraction = float(
         config.get("sheet_expansion.projection_smoothing_fraction", 0.012)
     )
@@ -134,9 +127,7 @@ def expand_to_sheet_boundary(
     local_y1 = y1 - sy0
     max_dx = round(max_fraction * page_width)
     max_dy = round(max_fraction * page_height)
-    prominence = float(
-        config.get("sheet_expansion.minimum_edge_prominence", 1.30)
-    )
+    prominence = float(config.get("sheet_expansion.minimum_edge_prominence", 1.30))
 
     def choose(
         profile: np.ndarray,
@@ -174,9 +165,7 @@ def expand_to_sheet_boundary(
             px1,
             sx0
             + (
-                right
-                if right is not None
-                else min(roi.shape[1], local_x1 + fallback_x)
+                right if right is not None else min(roi.shape[1], local_x1 + fallback_x)
             ),
         ),
         min(
@@ -226,19 +215,35 @@ def boundary_score(image_gray: np.ndarray, bbox: BBox) -> float:
         [
             prominence(
                 vertical_energy(x0),
-                [vertical_energy(x0 + offset) for offset in x_offsets if x0 + offset < x1],
+                [
+                    vertical_energy(x0 + offset)
+                    for offset in x_offsets
+                    if x0 + offset < x1
+                ],
             ),
             prominence(
                 vertical_energy(x1 - 1),
-                [vertical_energy(x1 - 1 - offset) for offset in x_offsets if x1 - 1 - offset > x0],
+                [
+                    vertical_energy(x1 - 1 - offset)
+                    for offset in x_offsets
+                    if x1 - 1 - offset > x0
+                ],
             ),
             prominence(
                 horizontal_energy(y0),
-                [horizontal_energy(y0 + offset) for offset in y_offsets if y0 + offset < y1],
+                [
+                    horizontal_energy(y0 + offset)
+                    for offset in y_offsets
+                    if y0 + offset < y1
+                ],
             ),
             prominence(
                 horizontal_energy(y1 - 1),
-                [horizontal_energy(y1 - 1 - offset) for offset in y_offsets if y1 - 1 - offset > y0],
+                [
+                    horizontal_energy(y1 - 1 - offset)
+                    for offset in y_offsets
+                    if y1 - 1 - offset > y0
+                ],
             ),
         ],
         dtype=np.float32,

@@ -177,7 +177,7 @@ def component_rectangles(
         if area < minimum:
             continue
         support = labels == label
-        coordinates = list(zip(*np.where(support)))
+        coordinates = list(zip(*np.where(support), strict=False))
         selected_boxes = [
             grid.boxes[row * grid.tile_cols + col] for row, col in coordinates
         ]
@@ -206,6 +206,7 @@ def component_rectangles(
                 selected_boxes,
                 centers_x,
                 centers_y,
+                strict=False,
             )
             if low_x <= center_x <= high_x and low_y <= center_y <= high_y
         ]

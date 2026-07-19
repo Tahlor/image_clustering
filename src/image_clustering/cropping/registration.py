@@ -24,14 +24,20 @@ def detect_features(image_gray: np.ndarray, config: Config) -> FeatureSet:
     return FeatureSet(keypoints=keypoints, descriptors=descriptors)
 
 
-def _matches(reference: FeatureSet, moving: FeatureSet, config: Config) -> list[cv2.DMatch]:
+def _matches(
+    reference: FeatureSet, moving: FeatureSet, config: Config
+) -> list[cv2.DMatch]:
     if reference.descriptors is None or moving.descriptors is None:
         return []
     norm = cv2.NORM_L2 if moving.descriptors.dtype == np.float32 else cv2.NORM_HAMMING
     matcher = cv2.BFMatcher(norm)
     raw = matcher.knnMatch(moving.descriptors, reference.descriptors, k=2)
     ratio = float(config.get("features.ratio_test", 0.76))
-    return [pair[0] for pair in raw if len(pair) == 2 and pair[0].distance < ratio * pair[1].distance]
+    return [
+        pair[0]
+        for pair in raw
+        if len(pair) == 2 and pair[0].distance < ratio * pair[1].distance
+    ]
 
 
 def _points(
@@ -40,7 +46,9 @@ def _points(
     matches: list[cv2.DMatch],
 ) -> tuple[np.ndarray, np.ndarray]:
     moving_points = np.float32([moving.keypoints[item.queryIdx].pt for item in matches])
-    reference_points = np.float32([reference.keypoints[item.trainIdx].pt for item in matches])
+    reference_points = np.float32(
+        [reference.keypoints[item.trainIdx].pt for item in matches]
+    )
     return moving_points, reference_points
 
 
@@ -86,9 +94,15 @@ def normalize_pair(
     mov_median = float(np.median(moving))
     ref_mad = float(np.median(np.abs(reference - ref_median)))
     mov_mad = float(np.median(np.abs(moving - mov_median)))
-    scale = 1.0 if min(ref_mad, mov_mad) < 1.0 else float(np.clip(ref_mad / mov_mad, 0.72, 1.38))
+    scale = (
+        1.0
+        if min(ref_mad, mov_mad) < 1.0
+        else float(np.clip(ref_mad / mov_mad, 0.72, 1.38))
+    )
     offset = ref_median - scale * mov_median
-    return np.clip(aligned_gray.astype(np.float32) * scale + offset, 0, 255).astype(np.uint8)
+    return np.clip(aligned_gray.astype(np.float32) * scale + offset, 0, 255).astype(
+        np.uint8
+    )
 
 
 def _stable_residual(
@@ -98,7 +112,8 @@ def _stable_residual(
 ) -> float:
     normalized = normalize_pair(reference_gray, aligned_gray, valid_mask)
     difference = cv2.GaussianBlur(
-        np.abs(reference_gray.astype(np.float32) - normalized.astype(np.float32)) / 255.0,
+        np.abs(reference_gray.astype(np.float32) - normalized.astype(np.float32))
+        / 255.0,
         (7, 7),
         0,
     )
@@ -167,14 +182,18 @@ def _evaluate(
     if inlier_ratio < float(config.get("features.min_inlier_ratio", 0.18)):
         return RegistrationResult(False, reason=f"{model}: low inlier ratio")
     if not _coverage_ok(reference_points, inlier_mask, reference_gray.shape, config):
-        return RegistrationResult(False, reason=f"{model}: inliers lack spatial coverage")
+        return RegistrationResult(
+            False, reason=f"{model}: inliers lack spatial coverage"
+        )
     matrix_h = affine_to_homography(matrix)
     aligned, valid = warp_to_reference(moving_gray, matrix_h, reference_gray.shape)
     overlap = float((valid > 0).mean())
     if overlap < float(config.get("registration.min_overlap_fraction", 0.70)):
         return RegistrationResult(False, reason=f"{model}: insufficient overlap")
     residual = _stable_residual(reference_gray, aligned, valid)
-    accepted = residual <= float(config.get("registration.max_stable_tile_residual", 0.19))
+    accepted = residual <= float(
+        config.get("registration.max_stable_tile_residual", 0.19)
+    )
     return RegistrationResult(
         accepted=accepted,
         model=model,
@@ -185,7 +204,9 @@ def _evaluate(
         overlap_fraction=overlap,
         stable_residual=residual,
         fingerprint_correlation=fingerprint_correlation,
-        reason=None if accepted else f"{model}: stable residual {residual:.3f} too high",
+        reason=None
+        if accepted
+        else f"{model}: stable residual {residual:.3f} too high",
     )
 
 
@@ -206,7 +227,9 @@ def register_pair(
             fingerprint_correlation=fingerprint_correlation,
             reason=f"Only {len(matches)} good matches",
         )
-    moving_points, reference_points = _points(reference_features, moving_features, matches)
+    moving_points, reference_points = _points(
+        reference_features, moving_features, matches
+    )
     threshold = float(config.get("features.ransac_reprojection_px", 5.0))
     affine, affine_mask = cv2.estimateAffine2D(
         moving_points,
@@ -251,7 +274,9 @@ def register_pair(
     )
     if affine_result.accepted:
         improvement = affine_result.stable_residual - homography_result.stable_residual
-        required = float(config.get("registration.homography_required_improvement", 0.018))
+        required = float(
+            config.get("registration.homography_required_improvement", 0.018)
+        )
         if homography_result.accepted and improvement >= required:
             return homography_result
         return affine_result

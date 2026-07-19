@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable
+from collections.abc import Iterable
 
 import cv2
 import numpy as np
@@ -69,9 +69,7 @@ def transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:
 
 def transform_bbox(bbox: BBox, matrix: np.ndarray, shape: tuple[int, int]) -> BBox:
     x0, y0, x1, y1 = bbox
-    corners = np.array(
-        [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=np.float64
-    )
+    corners = np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], dtype=np.float64)
     transformed = transform_points(corners, matrix)
     height, width = shape
     return (

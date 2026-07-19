@@ -15,6 +15,8 @@ from image_clustering.cropping import (
     CropConfig,
     crop_clustering_result,
     crop_directory,
+)
+from image_clustering.cropping import (
     load_default_config as load_crop_config,
 )
 
