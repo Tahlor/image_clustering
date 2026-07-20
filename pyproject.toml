@@ -24,6 +24,7 @@ dev = [
 [project.scripts]
 image-cluster = "image_clustering.cli:main"
 image-crop = "image_clustering.cropping.cli:main"
+image-label = "image_clustering.evaluation.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
