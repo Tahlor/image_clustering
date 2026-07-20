@@ -31,13 +31,11 @@ def make_case_id(images: Iterable[str]) -> str:
     return "__".join(values)
 
 
-def load_cases(path: Path) -> list[dict[str, Any]]:
-    """Read a reviewed-case JSONL file."""
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
-    cases: list[dict[str, Any]] = []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    for line_number, line in enumerate(lines, 1):
+    values: list[dict[str, Any]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         try:
@@ -47,8 +45,42 @@ def load_cases(path: Path) -> list[dict[str, Any]]:
             raise ValueError(message) from error
         if not isinstance(value, dict):
             raise ValueError(f"Expected JSON object on {path}:{line_number}")
-        cases.append(value)
-    return cases
+        values.append(value)
+    return values
+
+
+def override_path(path: Path) -> Path:
+    """Return the optional correction file associated with one JSONL store."""
+    return path.with_name(f"{path.stem}.overrides{path.suffix}")
+
+
+def load_cases(path: Path) -> list[dict[str, Any]]:
+    """Read reviewed cases and apply optional upsert/delete corrections.
+
+    The companion ``<stem>.overrides.jsonl`` file is intentionally small. It
+    lets a mistaken filename or crop label be corrected without rewriting a
+    large append-friendly reviewed-case history. Override records either contain
+    a normal case object or ``{"delete_case_id": "..."}``.
+    """
+    primary = _read_jsonl(path)
+    by_id: dict[str, dict[str, Any]] = {}
+    for case in primary:
+        case_id = str(case.get("case_id", ""))
+        if case_id in by_id:
+            raise ValueError(f"Duplicate case_id in {path}: {case_id}")
+        by_id[case_id] = case
+
+    corrections = override_path(path)
+    for operation in _read_jsonl(corrections):
+        delete_case_id = operation.get("delete_case_id")
+        if delete_case_id is not None:
+            by_id.pop(str(delete_case_id), None)
+            continue
+        case_id = str(
+            operation.get("case_id") or make_case_id(operation.get("images", []))
+        )
+        by_id[case_id] = {**operation, "case_id": case_id}
+    return [by_id[case_id] for case_id in sorted(by_id)]
 
 
 def write_cases(path: Path, cases: Iterable[dict[str, Any]]) -> None:
