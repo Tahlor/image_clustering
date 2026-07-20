@@ -17,6 +17,16 @@ def _is_hard_contradiction(comparison: PairComparison) -> bool:
     document-specific support and page-wide disagreement is characteristic of
     the same-template/different-record failure mode.
     """
+    if comparison.hard_contradiction:
+        return True
+    content_metrics_present = (
+        comparison.unmatched_ink_union_fraction < 1.0
+        or comparison.ink_mismatch_tiles_fraction < 1.0
+        or comparison.residual_tiles_changed_fraction < 1.0
+        or comparison.occlusion_candidate_count > 0
+    )
+    if content_metrics_present:
+        return False
     return (
         not comparison.same_document
         and comparison.registration_model is not None

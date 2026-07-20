@@ -1,0 +1,92 @@
+io:
+  supported_suffixes: [".jpg", ".jpeg", ".png", ".tif", ".tiff", ".jp2", ".j2k"]
+  jpeg_quality: 95
+  save_crops: true
+  save_annotated: true
+  save_diagnostics: false
+  resume: true
+
+scale:
+  registration_max_dimension: 1500
+  fingerprint_size: 96
+
+pair_search:
+  window: 3
+  min_fingerprint_correlation: 0.20
+
+features:
+  detector: sift
+  nfeatures: 5000
+  contrast_threshold: 0.018
+  ratio_test: 0.76
+  min_good_matches: 18
+  min_inliers: 14
+  min_inlier_ratio: 0.18
+  ransac_reprojection_px: 5.0
+  min_inlier_grid_cells: 5
+  inlier_grid_size: 4
+
+registration:
+  min_overlap_fraction: 0.70
+  max_stable_tile_residual: 0.19
+  homography_required_improvement: 0.018
+
+residual:
+  tiles_long_dimension: 34
+  upper_tail_fraction: 0.20
+  absolute_weight: 0.35
+  upper_tail_weight: 0.40
+  gradient_weight: 0.25
+  stable_fraction: 0.62
+  changed_z_threshold: 2.4
+  changed_min_absolute: 0.075
+  close_radius_tiles: 1
+  min_component_tiles: 2
+  support_mass_trim_fraction_y: 0.12
+  support_mass_trim_fraction_x: 0.0
+
+pages:
+  detect_gutter: true
+  gutter_search_min_fraction: 0.34
+  gutter_search_max_fraction: 0.66
+  gutter_min_prominence: 0.18
+  outer_margin_fraction: 0.018
+  gutter_margin_fraction: 0.010
+
+sheet_expansion:
+  search_padding_fraction: 0.20
+  max_expansion_fraction: 0.38
+  projection_smoothing_fraction: 0.012
+  minimum_edge_prominence: 1.30
+  fallback_padding_fraction: 0.035
+
+selection:
+  min_changed_area_fraction: 0.025
+  max_changed_area_fraction: 0.62
+  complete_max_occlusion_fraction: 0.025
+  partial_max_occlusion_fraction: 0.55
+  canonical_visibility_ratio: 0.90
+  min_content_score: 0.055
+  min_page_frontness: 0.58
+  canonical_frontness_weight: 0.20
+  canonical_detail_weight: 0.80
+  shallow_band_max_height_fraction: 0.27
+  shallow_band_min_width_fraction: 0.52
+  shallow_visibility_weight: 0.35
+  min_region_frontness: 0.72
+  blank_relative_detail_ratio: 0.67
+  blank_relative_content_ratio: 0.65
+  blank_relative_frontness_ratio: 0.72
+  blank_boundary_override: 1.50
+  min_unique_region_page_coverage: 0.25
+  min_unique_state_change_fraction: 0.05
+  min_boundary_score: 1.35
+  page_state_min_page_coverage: 0.68
+  duplicate_correlation_threshold: 0.985
+  submit_partial_best_available: true
+
+runtime:
+  workers: 0
+  fail_fast: false
+  opencv_threads: 1
+  log_level: INFO

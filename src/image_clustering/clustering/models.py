@@ -71,6 +71,26 @@ class PairComparison:
     stable_fraction: float = 0.0
     tiles_changed_fraction: float = 1.0
     largest_change_share: float = 0.0
+    unmatched_ink_fraction: float = 1.0
+    unmatched_ink_union_fraction: float = 1.0
+    ink_mismatch_tiles_fraction: float = 1.0
+    coherent_ink_component_count: int = 0
+    largest_ink_component_fraction: float = 0.0
+    residual_tiles_changed_fraction: float = 1.0
+    occlusion_candidate_count: int = 0
+    occlusion_area_fraction: float = 0.0
+    occlusion_residual_capture: float = 0.0
+    occlusion_rectangularity: float = 0.0
+    occlusion_boundary_score: float = 0.0
+    occlusion_material_fraction: float = 0.0
+    occlusion_material_median: float = 0.0
+    outside_unmatched_ink_fraction: float = 1.0
+    outside_unmatched_ink_union_fraction: float = 1.0
+    outside_ink_mismatch_tiles_fraction: float = 1.0
+    full_page_occlusion_count: int = 0
+    shallow_occlusion_count: int = 0
+    page_count: int = 1
+    hard_contradiction: bool = False
     branch: str | None = None
 
     def to_dict(self) -> dict[str, Any]:

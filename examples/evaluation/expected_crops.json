@@ -1,0 +1,23 @@
+{
+  "description": "Curated pilot targets for sequence-level crop recovery. Images are not stored in the public repository.",
+  "expected_submission_count": 20,
+  "groups": [
+    ["63129_2327225e_0084-00320.j2k", "63129_2327225e_0084-00322.j2k"],
+    ["i4071660-00697.j2k", "i4071660-00698.j2k"],
+    ["i4071660-00707.j2k", "i4071660-00708.j2k"],
+    ["i4071660-01040.j2k", "i4071660-01041.j2k"],
+    ["i4071662-00112.j2k", "i4071662-00113.j2k"],
+    ["i4071662-00357.j2k", "i4071662-00358.j2k"],
+    ["i4071662-00385.j2k", "i4071662-00386.j2k"],
+    ["i4071662-00471.j2k", "i4071662-00472.j2k", "i4071662-00473.j2k"]
+  ],
+  "partial_best_available": [
+    ["i4071660-00697.j2k", "right"],
+    ["i4071660-00707.j2k", "left"],
+    ["i4071660-00707.j2k", "right"]
+  ],
+  "distinct_triplet_overlays": [
+    "i4071662-00471.j2k",
+    "i4071662-00472.j2k"
+  ]
+}
