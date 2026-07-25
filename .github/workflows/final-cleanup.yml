@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "61c22730047f2efc1fe284f79e8040aa2bfaacc1"
+          test "$(git rev-parse HEAD)" = "1cdb486f99f9d08d802d84e859e2860f4f5f63cb"
           python -m pip install -q -e ".[dev]"
           python -m ruff check .
           python -m pytest -q
