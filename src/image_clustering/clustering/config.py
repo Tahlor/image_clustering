@@ -18,6 +18,7 @@ class ClusterConfig:
     """
 
     max_gap: int = 3
+    max_cluster_size: int | None = None
     max_working_dimension: int = 900
     max_features: int = 2500
     sift_contrast_threshold: float = 0.025
@@ -112,6 +113,8 @@ class ClusterConfig:
         """Validate configuration values."""
         if self.max_gap < 1:
             raise ValueError("max_gap must be at least 1")
+        if self.max_cluster_size is not None and self.max_cluster_size < 1:
+            raise ValueError("max_cluster_size must be at least 1 when set")
         if self.max_working_dimension < 128:
             raise ValueError("max_working_dimension must be at least 128")
         if self.max_features < self.min_inliers:

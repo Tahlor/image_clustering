@@ -50,6 +50,10 @@ def write_result(
             comparison.same_document for comparison in result.comparisons
         ),
         "cluster_count": len(result.clusters),
+        "grouping_mode": result.grouping_mode,
+        "group_manifest": (
+            str(result.group_manifest) if result.group_manifest is not None else None
+        ),
     }
     (output_dir / "run.json").write_text(
         json.dumps(metadata, indent=2),

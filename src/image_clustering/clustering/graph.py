@@ -14,8 +14,7 @@ def _is_hard_contradiction(comparison: PairComparison) -> bool:
 
     Registration failure is not a contradiction because two heavily occluded
     views may share no direct visible region. A well-registered pair with
-    document-specific support and page-wide disagreement is characteristic of
-    the same-template/different-record failure mode.
+    distributed document-specific disagreement is a hard negative.
     """
     if comparison.hard_contradiction:
         return True
@@ -39,6 +38,7 @@ def _is_hard_contradiction(comparison: PairComparison) -> bool:
 def _components(
     image_ids: list[str],
     comparisons: list[PairComparison],
+    max_cluster_size: int | None = None,
 ) -> list[list[str]]:
     parent = {image_id: image_id for image_id in image_ids}
     members = {image_id: {image_id} for image_id in image_ids}
@@ -57,6 +57,12 @@ def _components(
         first_root = find(first)
         second_root = find(second)
         if first_root == second_root:
+            return
+        if (
+            max_cluster_size is not None
+            and len(members[first_root]) + len(members[second_root])
+            > max_cluster_size
+        ):
             return
         if len(members[first_root]) < len(members[second_root]):
             first_root, second_root = second_root, first_root
@@ -116,12 +122,17 @@ def build_clusters(
     image_ids: list[str],
     comparisons: list[PairComparison],
     cluster_id_start: int = 1,
+    max_cluster_size: int | None = None,
 ) -> list[ImageCluster]:
     """Convert accepted pair edges into complete conservative components."""
     order = {image_id: index for index, image_id in enumerate(image_ids)}
     clusters = []
     for offset, component in enumerate(
-        _components(image_ids=image_ids, comparisons=comparisons)
+        _components(
+            image_ids=image_ids,
+            comparisons=comparisons,
+            max_cluster_size=max_cluster_size,
+        )
     ):
         component.sort(key=order.__getitem__)
         clusters.append(

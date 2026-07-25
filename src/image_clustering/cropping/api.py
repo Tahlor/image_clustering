@@ -181,12 +181,14 @@ def crop_directory(
     cluster_config: ClusterConfig | None = None,
     crop_config: Config | None = None,
     cache_dir: Path | None = None,
+    triplet_manifest: Path | None = None,
     show_progress: bool = False,
 ) -> dict[str, Any]:
     """Cluster an image tree and recover unique crops in one call.
 
-    Images are compared only within their immediate parent folder. Upstream
-    clustering controls the nearby comparison window and cluster membership.
+    Images are compared only within their immediate parent folder unless a
+    triplet manifest is supplied. Upstream clustering controls the nearby
+    comparison window and cluster membership.
 
     Args:
         input_dir: Root containing one or more independent image folders.
@@ -194,6 +196,7 @@ def crop_directory(
         cluster_config: Optional upstream clustering configuration.
         crop_config: Optional crop-localization configuration.
         cache_dir: Optional persistent clustering feature cache.
+        triplet_manifest: Optional neighbor-triplet CSV restricting candidate groups.
         show_progress: Whether to display progress bars for large runs.
 
     Returns:
@@ -203,6 +206,7 @@ def crop_directory(
         input_dir=input_dir,
         config=cluster_config,
         cache_dir=cache_dir,
+        triplet_manifest=triplet_manifest,
         show_progress=show_progress,
     )
     return crop_clustering_result(

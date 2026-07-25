@@ -91,3 +91,21 @@ def test_registration_failure_does_not_block_occlusion_bridge() -> None:
         comparisons=[first, second, no_direct_overlap],
     )
     assert [cluster.image_ids for cluster in clusters] == [tuple(image_ids)]
+
+
+def test_max_cluster_size_blocks_oversized_transitive_component() -> None:
+    image_ids = [f"{index}.jpg" for index in range(4)]
+    comparisons = [
+        make_comparison(image_ids[index], image_ids[index + 1], True)
+        for index in range(3)
+    ]
+    clusters = build_clusters(
+        sequence_id=".",
+        image_ids=image_ids,
+        comparisons=comparisons,
+        max_cluster_size=3,
+    )
+    assert [cluster.image_ids for cluster in clusters] == [
+        ("0.jpg", "1.jpg", "2.jpg"),
+        ("3.jpg",),
+    ]

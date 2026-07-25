@@ -8,3 +8,6 @@ build/
 dist/
 .feature_cache/
 results/
+*.log
+.tmp_manifest_inventory/
+review_labels/

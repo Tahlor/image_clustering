@@ -41,6 +41,11 @@ def parser(args: str | Sequence[str] | None = None) -> argparse.Namespace:
     command.add_argument("--cluster_config", type=Path)
     command.add_argument("--crop_config", type=Path)
     command.add_argument("--cache_dir", type=Path)
+    command.add_argument(
+        "--triplet_manifest",
+        type=Path,
+        help="Optional CSV defining independent ordered neighbor groups.",
+    )
     command.add_argument("--show_progress", action="store_true")
     command.add_argument(
         "--log_level",
@@ -70,6 +75,7 @@ def run(argv: str | Sequence[str] | None = None) -> int:
             input_dir=args.input_dir,
             config=cluster_config,
             cache_dir=args.cache_dir,
+            triplet_manifest=args.triplet_manifest,
             show_progress=args.show_progress,
         )
         write_result(

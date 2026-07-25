@@ -127,3 +127,26 @@ Feature overlap is used to establish registration, not to prove identity. After 
 - the same scene with a coherent physical occlusion and near-exact agreement outside it.
 
 Distributed handwriting, names, dates, and signatures that do not match are hard-negative evidence. A registered hard contradiction prevents a transitive graph bridge. Registration failure alone does not block a bridge because heavily occluded views may share little direct visible content.
+
+## Explicit neighbor-group manifests
+
+Folder ordering remains the default. For curated neighbor samples, pass a CSV manifest with `source_sample_row`, `neighbor_of`, `media_item_id`, and `filename`; optional `relative_path` and `sequence_index` columns disambiguate and order images. Manifest groups are independent and may contain any number of images unless `ClusterConfig.max_cluster_size` is explicitly set.
+
+```bash
+image-crop \
+  --input_dir /path/to/images \
+  --triplet_manifest /path/to/neighbor_groups.csv \
+  --output_dir /path/to/results \
+  --cluster_config configs/default.json \
+  --crop_config configs/cropping_default.yaml
+```
+
+## Evaluation and review
+
+`scripts/evaluate_dataset.py` creates the inventory, clustering/crop reports, validation output, and fast HTML review for a complete run. The local review application then supports keyboard-first membership decisions, bounding-box editing, undo, irregular exclusions, and corrected exports without modifying canonical clustering or crop artifacts.
+
+```bash
+image-review --output_dir /path/to/completed-evaluation
+```
+
+Review decisions and corrected exports are written under `<output_dir>/review_labels/`.

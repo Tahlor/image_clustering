@@ -12,7 +12,11 @@ import cv2
 from tqdm import tqdm
 
 from image_clustering.clustering.config import ClusterConfig
-from image_clustering.clustering.discovery import discover_sequences, make_image_items
+from image_clustering.clustering.discovery import (
+    discover_sequences,
+    discover_triplet_sequences,
+    make_image_items,
+)
 from image_clustering.clustering.features import extract_features
 from image_clustering.clustering.graph import build_clusters
 from image_clustering.clustering.models import (
@@ -132,6 +136,7 @@ def _cluster_sequence(
         image_ids=[image.image_id for image in images],
         comparisons=comparisons,
         cluster_id_start=cluster_id_start,
+        max_cluster_size=config.max_cluster_size,
     )
     return clusters, comparisons
 
@@ -181,6 +186,7 @@ def cluster_directory(
     *,
     config: ClusterConfig | None = None,
     cache_dir: Path | None = None,
+    triplet_manifest: Path | None = None,
     show_progress: bool = False,
 ) -> ClusteringResult:
     """Cluster every independent filename-ordered folder below a root.
@@ -197,7 +203,15 @@ def cluster_directory(
     """
     input_dir = input_dir.resolve()
     resolved_config = config or ClusterConfig()
-    sequences = discover_sequences(input_dir=input_dir)
+    sequences = (
+        discover_triplet_sequences(
+            input_dir=input_dir,
+            manifest_path=triplet_manifest,
+            max_group_size=resolved_config.max_cluster_size,
+        )
+        if triplet_manifest is not None
+        else discover_sequences(input_dir=input_dir)
+    )
     workers = _worker_count(config=resolved_config)
     cv2.setNumThreads(1)
 
@@ -228,6 +242,12 @@ def cluster_directory(
     return ClusteringResult(
         config_fingerprint=resolved_config.fingerprint(),
         input_root=input_dir,
+        grouping_mode=(
+            "triplet_manifest" if triplet_manifest is not None else "folder_sequence"
+        ),
+        group_manifest=(
+            triplet_manifest.resolve() if triplet_manifest is not None else None
+        ),
         images=tuple(all_images),
         clusters=tuple(all_clusters),
         comparisons=tuple(all_comparisons),

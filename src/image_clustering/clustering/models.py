@@ -142,6 +142,8 @@ class ClusteringResult:
     clusters: tuple[ImageCluster, ...]
     comparisons: tuple[PairComparison, ...]
     input_root: Path | None = None
+    grouping_mode: str = "folder_sequence"
+    group_manifest: Path | None = None
 
     def image(self, image_id: str) -> ImageItem:
         """Return one image by stable image identifier."""
@@ -197,6 +199,10 @@ class ClusteringResult:
             "schema_version": 1,
             "config_fingerprint": self.config_fingerprint,
             "input_root": str(self.input_root) if self.input_root is not None else None,
+            "grouping_mode": self.grouping_mode,
+            "group_manifest": (
+                str(self.group_manifest) if self.group_manifest is not None else None
+            ),
             "images": [image.to_dict() for image in self.images],
             "clusters": [cluster.to_dict() for cluster in self.clusters],
             "comparisons": [comparison.to_dict() for comparison in self.comparisons],
@@ -210,9 +216,12 @@ class ClusteringResult:
                 f"Unsupported schema_version: {value.get('schema_version')}"
             )
         input_root = value.get("input_root")
+        group_manifest = value.get("group_manifest")
         return cls(
             config_fingerprint=value["config_fingerprint"],
             input_root=Path(input_root) if input_root is not None else None,
+            grouping_mode=value.get("grouping_mode", "folder_sequence"),
+            group_manifest=Path(group_manifest) if group_manifest is not None else None,
             images=tuple(ImageItem.from_dict(item) for item in value["images"]),
             clusters=tuple(ImageCluster.from_dict(item) for item in value["clusters"]),
             comparisons=tuple(
