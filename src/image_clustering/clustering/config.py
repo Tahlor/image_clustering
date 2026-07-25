@@ -39,6 +39,72 @@ class ClusterConfig:
     tile_rows: int = 6
     tile_columns: int = 8
     tile_changed_threshold: float = 0.20
+
+    # Document-specific ink agreement. SIFT establishes registration; these
+    # thresholds decide whether the filled content is actually the same.
+    ink_background_sigma_fraction: float = 0.018
+    ink_gradient_weight: float = 0.16
+    ink_min_response: float = 0.085
+    ink_min_component_fraction: float = 0.000003
+    ink_mismatch_min_component_fraction: float = 0.000008
+    ink_tolerance_fraction: float = 0.0025
+    ink_tile_union_threshold: float = 0.08
+    ink_tile_valid_threshold: float = 0.004
+    content_tile_rows: int = 10
+    content_tile_columns: int = 14
+
+    # Near duplicates require essentially exact document-specific ink.
+    duplicate_min_feature_overlap: float = 0.08
+    duplicate_max_changed_fraction: float = 0.35
+    duplicate_max_unmatched_ink_fraction: float = 0.0025
+    duplicate_max_unmatched_ink_union_fraction: float = 0.02
+    duplicate_max_ink_mismatch_tiles_fraction: float = 0.10
+
+    # Non-duplicate pairs are accepted only when a physical occluder explains
+    # nearly all meaningful disagreement.
+    residual_upper_tail_fraction: float = 0.20
+    residual_stable_fraction: float = 0.58
+    residual_min_scale: float = 0.012
+    residual_changed_z_threshold: float = 2.4
+    residual_changed_min_absolute: float = 0.075
+    occlusion_min_feature_overlap: float = 0.10
+    occlusion_min_component_tiles: int = 2
+    occlusion_min_page_area_fraction: float = 0.025
+    occlusion_padding_x_fraction: float = 0.05
+    occlusion_padding_y_fraction: float = 0.08
+    occlusion_full_page_tile_fraction: float = 0.90
+    occlusion_full_page_ink_tile_fraction: float = 0.60
+    occlusion_full_page_material_fraction: float = 0.30
+    occlusion_full_page_low_changed_fraction: float = 0.15
+    occlusion_full_page_min_ink_mismatch_fraction: float = 0.45
+    occlusion_min_area_fraction: float = 0.025
+    occlusion_max_area_fraction: float = 0.85
+    occlusion_min_residual_capture: float = 0.45
+    occlusion_strong_boundary_min_capture: float = 0.30
+    occlusion_min_boundary_score: float = 0.90
+    occlusion_strong_boundary_score: float = 1.45
+    occlusion_min_material_fraction: float = 0.12
+    occlusion_large_clean_max_area_fraction: float = 0.95
+    occlusion_large_clean_max_unmatched_ink_union_fraction: float = 0.08
+    occlusion_max_outside_unmatched_ink_fraction: float = 0.028
+    occlusion_max_outside_unmatched_ink_union_fraction: float = 0.115
+    occlusion_max_outside_ink_mismatch_tiles_fraction: float = 0.30
+    occlusion_shallow_max_height_fraction: float = 0.30
+    occlusion_shallow_min_width_fraction: float = 0.50
+    gutter_min_aspect_ratio: float = 1.15
+    gutter_search_min_fraction: float = 0.34
+    gutter_search_max_fraction: float = 0.66
+    gutter_min_prominence: float = 0.18
+
+    # A registered rejection blocks a transitive graph merge only when both
+    # ink and residual disagreement are distributed rather than occlusion-like.
+    contradiction_min_ink_mismatch_tiles_fraction: float = 0.25
+    contradiction_min_residual_tiles_changed_fraction: float = 0.18
+    contradiction_min_unmatched_ink_union_fraction: float = 0.06
+    contradiction_overwhelming_ink_tiles_fraction: float = 0.70
+    contradiction_overwhelming_unmatched_ink_union_fraction: float = 0.25
+    contradiction_overwhelming_outside_ink_union_fraction: float = 0.20
+
     cache_features: bool = True
     workers: int = 0
 
@@ -52,6 +118,10 @@ class ClusterConfig:
             raise ValueError("max_features must be at least min_inliers")
         if self.workers < 0:
             raise ValueError("workers cannot be negative")
+        if self.content_tile_rows < 2 or self.content_tile_columns < 2:
+            raise ValueError("content tile grid must be at least 2 by 2")
+        if self.occlusion_min_component_tiles < 1:
+            raise ValueError("occlusion_min_component_tiles must be positive")
         unit_interval_fields = (
             "ratio_test",
             "min_inlier_ratio",
@@ -66,11 +136,67 @@ class ClusterConfig:
             "exceptional_max_changed_fraction",
             "min_valid_fraction",
             "tile_changed_threshold",
+            "ink_background_sigma_fraction",
+            "ink_gradient_weight",
+            "ink_min_response",
+            "ink_min_component_fraction",
+            "ink_mismatch_min_component_fraction",
+            "ink_tolerance_fraction",
+            "ink_tile_union_threshold",
+            "ink_tile_valid_threshold",
+            "duplicate_min_feature_overlap",
+            "duplicate_max_changed_fraction",
+            "duplicate_max_unmatched_ink_fraction",
+            "duplicate_max_unmatched_ink_union_fraction",
+            "duplicate_max_ink_mismatch_tiles_fraction",
+            "residual_upper_tail_fraction",
+            "residual_stable_fraction",
+            "residual_min_scale",
+            "residual_changed_min_absolute",
+            "occlusion_min_feature_overlap",
+            "occlusion_min_page_area_fraction",
+            "occlusion_padding_x_fraction",
+            "occlusion_padding_y_fraction",
+            "occlusion_full_page_tile_fraction",
+            "occlusion_full_page_ink_tile_fraction",
+            "occlusion_full_page_material_fraction",
+            "occlusion_full_page_low_changed_fraction",
+            "occlusion_full_page_min_ink_mismatch_fraction",
+            "occlusion_min_area_fraction",
+            "occlusion_max_area_fraction",
+            "occlusion_min_residual_capture",
+            "occlusion_strong_boundary_min_capture",
+            "occlusion_min_material_fraction",
+            "occlusion_large_clean_max_area_fraction",
+            "occlusion_large_clean_max_unmatched_ink_union_fraction",
+            "occlusion_max_outside_unmatched_ink_fraction",
+            "occlusion_max_outside_unmatched_ink_union_fraction",
+            "occlusion_max_outside_ink_mismatch_tiles_fraction",
+            "occlusion_shallow_max_height_fraction",
+            "occlusion_shallow_min_width_fraction",
+            "gutter_search_min_fraction",
+            "gutter_search_max_fraction",
+            "gutter_min_prominence",
+            "contradiction_min_ink_mismatch_tiles_fraction",
+            "contradiction_min_residual_tiles_changed_fraction",
+            "contradiction_min_unmatched_ink_union_fraction",
+            "contradiction_overwhelming_ink_tiles_fraction",
+            "contradiction_overwhelming_unmatched_ink_union_fraction",
+            "contradiction_overwhelming_outside_ink_union_fraction",
         )
         for field_name in unit_interval_fields:
             value = getattr(self, field_name)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{field_name} must be in [0, 1], got {value}")
+        positive_fields = (
+            "residual_changed_z_threshold",
+            "occlusion_min_boundary_score",
+            "occlusion_strong_boundary_score",
+            "gutter_min_aspect_ratio",
+        )
+        for field_name in positive_fields:
+            if getattr(self, field_name) <= 0:
+                raise ValueError(f"{field_name} must be positive")
 
     @classmethod
     def from_json(cls, path: Path | None) -> ClusterConfig:

@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "image-clustering"
-version = "0.1.0"
-description = "Conservative clustering of repeated document captures under occlusion."
+version = "0.2.0"
+description = "Conservative clustering and unique crop recovery for repeated document captures."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.26",
   "opencv-python-headless>=4.9",
+  "PyYAML>=6.0",
   "tqdm>=4.66",
 ]
 
@@ -22,9 +23,14 @@ dev = [
 
 [project.scripts]
 image-cluster = "image_clustering.cli:main"
+image-crop = "image_clustering.cropping.cli:main"
+image-label = "image_clustering.evaluation.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+image_clustering = ["cropping/default.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -1,0 +1,14 @@
+# Override only values that differ from packaged defaults.
+io:
+  save_crops: true
+  save_annotated: true
+  save_diagnostics: false
+  resume: true
+
+pair_search:
+  window: 3
+
+runtime:
+  workers: 0
+  opencv_threads: 1
+  log_level: INFO
