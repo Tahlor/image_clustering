@@ -25,7 +25,9 @@ jobs:
           fetch-depth: 0
 
       - name: Inventory every branch
-        run: python scripts/branch_audit.py --output_dir branch-audit
+        run: |
+          python scripts/branch_audit.py --output_dir branch-audit
+          git bundle create branch-audit/repository.bundle --all
 
       - name: Upload branch audit
         uses: actions/upload-artifact@v4
