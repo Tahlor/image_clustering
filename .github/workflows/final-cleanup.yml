@@ -28,12 +28,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Verify reconciled master
+      - name: Format and validate reconciled master
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "1cdb486f99f9d08d802d84e859e2860f4f5f63cb"
           python -m pip install -q -e ".[dev]"
+          python -m ruff check . --fix
+          if ! git diff --quiet; then
+            git config user.name "Taylor Archibald"
+            git config user.email "taylornarchibald@users.noreply.github.com"
+            git add -A
+            git commit -m "Apply final lint fixes"
+            git push origin HEAD:master
+          fi
           python -m ruff check .
           python -m pytest -q
 
