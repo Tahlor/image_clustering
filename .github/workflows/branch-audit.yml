@@ -1,0 +1,176 @@
+name: Branch reconciliation audit
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - .github/workflows/branch-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Inventory every branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          mkdir -p branch-audit/patches
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import re
+          import subprocess
+          from pathlib import Path
+
+
+          def git(*args: str, check: bool = True) -> str:
+              result = subprocess.run(
+                  ["git", *args],
+                  check=check,
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+              )
+              return result.stdout.strip()
+
+
+          def succeeds(*args: str) -> bool:
+              return subprocess.run(
+                  ["git", *args],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              ).returncode == 0
+
+
+          branches = []
+          refs = git(
+              "for-each-ref",
+              "--format=%(refname:strip=3)",
+              "refs/remotes/origin",
+          ).splitlines()
+          for branch in sorted(ref for ref in refs if ref and ref != "HEAD"):
+              ref = f"origin/{branch}"
+              head = git("rev-parse", ref)
+              if branch == "master":
+                  branches.append(
+                      {
+                          "name": branch,
+                          "head": head,
+                          "default": True,
+                      }
+                  )
+                  continue
+
+              merge_base = git("merge-base", "origin/master", ref)
+              safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "__", branch)
+              direct_patch = git("diff", "--binary", "origin/master", ref)
+              merge_base_patch = git(
+                  "diff",
+                  "--binary",
+                  f"{merge_base}..{ref}",
+              )
+              Path(f"branch-audit/patches/{safe_name}__tree-vs-master.patch").write_text(
+                  direct_patch,
+                  encoding="utf-8",
+              )
+              Path(f"branch-audit/patches/{safe_name}__since-merge-base.patch").write_text(
+                  merge_base_patch,
+                  encoding="utf-8",
+              )
+              unique_commits = git(
+                  "log",
+                  "--format=%H%x09%aI%x09%an%x09%s",
+                  f"origin/master..{ref}",
+              ).splitlines()
+              branch_commits = git(
+                  "log",
+                  "--format=%H%x09%aI%x09%an%x09%s",
+                  f"{merge_base}..{ref}",
+              ).splitlines()
+              branches.append(
+                  {
+                      "name": branch,
+                      "head": head,
+                      "default": False,
+                      "merge_base": merge_base,
+                      "head_is_ancestor_of_master": succeeds(
+                          "merge-base", "--is-ancestor", ref, "origin/master"
+                      ),
+                      "master_is_ancestor_of_head": succeeds(
+                          "merge-base", "--is-ancestor", "origin/master", ref
+                      ),
+                      "tree_equal_to_master": not bool(direct_patch),
+                      "ahead_of_master": int(
+                          git("rev-list", "--count", f"origin/master..{ref}") or 0
+                      ),
+                      "behind_master": int(
+                          git("rev-list", "--count", f"{ref}..origin/master") or 0
+                      ),
+                      "unique_commits_vs_master": unique_commits,
+                      "commits_since_merge_base": branch_commits,
+                      "tree_diff_name_status": git(
+                          "diff", "--name-status", "origin/master", ref
+                      ).splitlines(),
+                      "merge_base_diff_name_status": git(
+                          "diff", "--name-status", f"{merge_base}..{ref}"
+                      ).splitlines(),
+                      "tree_diff_stat": git(
+                          "diff", "--stat", "origin/master", ref
+                      ).splitlines(),
+                  }
+              )
+
+          payload = {
+              "master": git("rev-parse", "origin/master"),
+              "branches": branches,
+          }
+          Path("branch-audit/inventory.json").write_text(
+              json.dumps(payload, indent=2),
+              encoding="utf-8",
+          )
+
+          lines = [f"master: {payload['master']}", ""]
+          for branch in branches:
+              lines.append(f"BRANCH {branch['name']} @ {branch['head']}")
+              if branch.get("default"):
+                  lines.append("  default branch")
+              else:
+                  lines.append(
+                      "  "
+                      f"ahead={branch['ahead_of_master']} "
+                      f"behind={branch['behind_master']} "
+                      f"tree_equal={branch['tree_equal_to_master']} "
+                      f"head_ancestor={branch['head_is_ancestor_of_master']} "
+                      f"master_ancestor={branch['master_is_ancestor_of_head']}"
+                  )
+                  lines.append("  commits unique versus master:")
+                  lines.extend(
+                      f"    {commit}"
+                      for commit in branch["unique_commits_vs_master"]
+                  )
+                  lines.append("  tree diff versus master:")
+                  lines.extend(
+                      f"    {item}"
+                      for item in branch["tree_diff_name_status"]
+                  )
+              lines.append("")
+          summary = "\n".join(lines)
+          Path("branch-audit/summary.txt").write_text(summary, encoding="utf-8")
+          print(summary)
+          PY
+
+      - name: Upload branch audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-reconciliation-audit
+          path: branch-audit
+          retention-days: 1
