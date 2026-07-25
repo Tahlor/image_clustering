@@ -5,6 +5,11 @@ on:
     branches: [agent/final-reconciliation]
     paths:
       - .cleanup-trigger
+  pull_request:
+    branches: [master]
+    paths:
+      - .cleanup-trigger
+      - .github/workflows/final-cleanup.yml
 
 permissions:
   contents: write
@@ -32,13 +37,17 @@ jobs:
           python -m ruff check .
           python -m pytest -q
 
-      - name: Close temporary PR and delete every non-master branch
+      - name: Close temporary PRs and delete every non-master branch
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/3" -f state=closed >/dev/null || true
+          gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \
+            --jq '.[].number' | while read -r number; do
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/${number}" \
+                -f state=closed >/dev/null || true
+            done
           for branch in \
             agent/evaluate-1498-html \
             agent/sequence-cropper \
