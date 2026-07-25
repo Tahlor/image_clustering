@@ -1,0 +1,48 @@
+name: Final validation and branch cleanup
+
+on:
+  push:
+    branches: [agent/final-reconciliation]
+    paths:
+      - .cleanup-trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify reconciled master
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "61c22730047f2efc1fe284f79e8040aa2bfaacc1"
+          python -m pip install -q -e ".[dev]"
+          python -m ruff check .
+          python -m pytest -q
+
+      - name: Close temporary PR and delete every non-master branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/pulls/3" -f state=closed >/dev/null || true
+          for branch in \
+            agent/evaluate-1498-html \
+            agent/sequence-cropper \
+            agent/branch-reconciliation-audit \
+            agent/final-reconciliation; do
+            git push origin --delete "$branch" || true
+          done
