@@ -1,0 +1,44 @@
+name: Verify single branch
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/verify-single-branch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Verify and record branch inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          branches="$({
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" \
+              --jq '.[].name'
+          } | sort)"
+
+          printf '%s\n' "$branches"
+          if [[ "$branches" != "master" ]]; then
+            echo "Expected exactly one branch named master." >&2
+            exit 1
+          fi
+
+          printf 'master\n' > .branch-cleanup-verified
+          git rm .github/workflows/verify-single-branch.yml
+          git add .branch-cleanup-verified
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Verify master is the only branch"
+          git push origin HEAD:master
