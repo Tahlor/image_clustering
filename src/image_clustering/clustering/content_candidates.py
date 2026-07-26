@@ -6,11 +6,7 @@ import cv2
 import numpy as np
 
 from image_clustering.clustering.config import ClusterConfig
-from image_clustering.clustering.content_geometry import (
-    _boundary_score,
-    _tile_bounds,
-    _weighted_quantile,
-)
+from image_clustering.clustering.content_geometry import _boundary_score, _tile_bounds
 
 
 def _component_candidates(
@@ -25,6 +21,7 @@ def _component_candidates(
     aligned: np.ndarray,
     config: ClusterConfig,
 ) -> list[dict[str, float | int | tuple[int, int, int, int] | np.ndarray]]:
+    """Return the strongest contiguous residual region for one detected page."""
     page_mask = np.zeros_like(changed)
     page_mask[:, page_columns] = True
     page_valid = valid_tiles & page_mask
@@ -35,9 +32,6 @@ def _component_candidates(
     candidates: list[
         dict[str, float | int | tuple[int, int, int, int] | np.ndarray]
     ] = []
-    page_ink_mismatch_fraction = float(
-        (ink_tile_mismatch & page_valid).sum() / max(page_valid.sum(), 1)
-    )
     px0, py0, px1, py1 = page_bbox
     material_sigma = max(3.0, min(reference.shape) / 120.0)
     page_material = np.abs(
@@ -53,24 +47,22 @@ def _component_candidates(
         )
     )[py0:py1, px0:px1]
     page_material_fraction = float(np.mean(page_material >= 0.04))
+    # Never promote a page merely because ink differs across it: two filled
+    # copies of the same form have exactly that signature. A full-page shortcut
+    # requires broad *material* change as well as broad residual support.
     if (
-        page_changed_fraction >= config.occlusion_full_page_tile_fraction
-        or (
-            page_ink_mismatch_fraction >= config.occlusion_full_page_ink_tile_fraction
-            and page_changed_fraction >= 0.12
-        )
-        or (
-            page_material_fraction >= config.occlusion_full_page_material_fraction
-            and page_changed_fraction <= config.occlusion_full_page_low_changed_fraction
-            and page_ink_mismatch_fraction
-            >= config.occlusion_full_page_min_ink_mismatch_fraction
-        )
+        page_changed_fraction >= config.occlusion_full_page_min_changed_fraction
+        and page_material_fraction >= config.occlusion_full_page_min_material_fraction
+    ) or (
+        page_material_fraction
+        >= config.occlusion_full_page_strong_material_fraction
+        and page_changed_fraction
+        >= config.occlusion_full_page_strong_material_min_changed_fraction
     ):
-        support = page_valid.copy()
         candidates.append(
             {
                 "bbox": page_bbox,
-                "support": support,
+                "support": page_valid.copy(),
                 "rectangularity": 1.0,
                 "boundary": 0.0,
                 "full_page": 1,
@@ -83,51 +75,27 @@ def _component_candidates(
         connectivity=8,
     )
     rows, columns = changed.shape
-    px0, py0, px1, py1 = page_bbox
     page_width = px1 - px0
     page_height = py1 - py0
     for label in range(1, count):
         area = int(stats[label, cv2.CC_STAT_AREA])
         if area < config.occlusion_min_component_tiles:
             continue
-        support = labels == label
+        support = (labels == label) & page_valid
         coordinates = list(zip(*np.where(support), strict=True))
         boxes = [
             _tile_bounds(row, column, shape, rows, columns)
             for row, column in coordinates
         ]
-        centers_x = np.asarray(
-            [(box[0] + box[2]) / 2 for box in boxes],
-            dtype=np.float32,
-        )
-        centers_y = np.asarray(
-            [(box[1] + box[3]) / 2 for box in boxes],
-            dtype=np.float32,
-        )
-        score_baseline = float(np.nanmedian(scores[valid_tiles]))
-        weights = np.asarray(
-            [
-                max(float(scores[row, column] - score_baseline), 1e-4)
-                for row, column in coordinates
-            ],
-            dtype=np.float32,
-        )
-        low_x = _weighted_quantile(centers_x, weights, 0.08)
-        high_x = _weighted_quantile(centers_x, weights, 0.92)
-        low_y = _weighted_quantile(centers_y, weights, 0.20)
-        high_y = _weighted_quantile(centers_y, weights, 0.80)
-        trimmed_boxes = [
-            box
-            for box, center_x, center_y in zip(boxes, centers_x, centers_y, strict=True)
-            if low_x <= center_x <= high_x and low_y <= center_y <= high_y
-        ]
-        if not trimmed_boxes:
-            trimmed_boxes = boxes
+        # Use the full connected component for geometry. Quantile trimming
+        # silently removed the ends of genuine skewed/warped overlays and made
+        # large occlusions look too small, while the final scorer already has
+        # strict support-density and exterior-agreement gates.
         raw_bbox = (
-            min(box[0] for box in trimmed_boxes),
-            min(box[1] for box in trimmed_boxes),
-            max(box[2] for box in trimmed_boxes),
-            max(box[3] for box in trimmed_boxes),
+            min(box[0] for box in boxes),
+            min(box[1] for box in boxes),
+            max(box[2] for box in boxes),
+            max(box[3] for box in boxes),
         )
         raw_width = raw_bbox[2] - raw_bbox[0]
         raw_height = raw_bbox[3] - raw_bbox[1]
@@ -153,26 +121,14 @@ def _component_candidates(
             _boundary_score(reference, bbox),
             _boundary_score(aligned, bbox),
         )
-        bbox_support = np.zeros_like(support)
-        for tile_row in range(rows):
-            for tile_column in range(columns):
-                tx0, ty0, tx1, ty1 = _tile_bounds(
-                    tile_row,
-                    tile_column,
-                    shape,
-                    rows,
-                    columns,
-                )
-                center_x = (tx0 + tx1) / 2
-                center_y = (ty0 + ty1) / 2
-                if bbox[0] <= center_x < bbox[2] and bbox[1] <= center_y < bbox[3]:
-                    bbox_support[tile_row, tile_column] = valid_tiles[
-                        tile_row, tile_column
-                    ]
         candidates.append(
             {
                 "bbox": bbox,
-                "support": bbox_support,
+                # Keep the connected support. The old implementation replaced
+                # it with every tile in the padded bbox, which let sparse text
+                # changes swallow clean form structure and masquerade as a
+                # rectangular sheet.
+                "support": support,
                 "rectangularity": area / tile_bbox_area,
                 "boundary": boundary,
                 "full_page": 0,

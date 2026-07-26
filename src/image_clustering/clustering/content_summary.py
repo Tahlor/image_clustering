@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from image_clustering.clustering.config import ClusterConfig
+from image_clustering.clustering.content_geometry import _tile_bounds
 from image_clustering.clustering.content_models import ContentGrid, ContentMetrics
 from image_clustering.clustering.content_pages import Candidate, PageRegion
 
@@ -26,14 +27,26 @@ def build_content_metrics(
     boundaries: list[float] = []
     full_page_count = 0
     shallow_count = 0
+    rows, columns = grid.valid_tiles.shape
     for candidate in selected:
         bbox = candidate["bbox"]
         assert isinstance(bbox, tuple)
         x0, y0, x1, y1 = bbox
-        candidate_mask[y0:y1, x0:x1] = True
         support = candidate["support"]
         assert isinstance(support, np.ndarray)
         candidate_tile_mask |= support
+        # Convert only the connected residual support to pixels. A narrow
+        # dilation absorbs imperfect/skewed seams without filling the entire
+        # component bounding box.
+        for row, column in zip(*np.where(support), strict=True):
+            tx0, ty0, tx1, ty1 = _tile_bounds(
+                row,
+                column,
+                reference.shape,
+                rows,
+                columns,
+            )
+            candidate_mask[ty0:ty1, tx0:tx1] = True
         rectangularities.append(float(candidate["rectangularity"]))
         boundaries.append(float(candidate["boundary"]))
         full_page_count += int(candidate["full_page"])
@@ -50,6 +63,15 @@ def build_content_metrics(
         ) >= config.occlusion_shallow_min_width_fraction:
             shallow_count += 1
 
+    if candidate_mask.any():
+        seam_tolerance = max(
+            3,
+            (round(min(reference.shape) * 0.008) // 2) * 2 + 1,
+        )
+        candidate_mask = cv2.dilate(
+            candidate_mask.astype(np.uint8),
+            np.ones((seam_tolerance, seam_tolerance), np.uint8),
+        ).astype(bool)
     candidate_mask &= grid.core
     candidate_area_fraction = float(candidate_mask.sum() / max(grid.core.sum(), 1))
     excess = np.maximum(grid.zscores, 0.0)

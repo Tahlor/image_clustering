@@ -97,10 +97,15 @@ def compute_content_grid(
     else:
         zscores = np.zeros_like(scores)
         changed = np.zeros_like(valid_tiles)
+
+    # A square 3x3 close on the old 10x14 grid could connect handwriting in
+    # unrelated fields into one page-sized block. A finer grid plus a cross
+    # close still fills small holes in a real sheet while preserving seams
+    # between distributed text changes.
     changed = cv2.morphologyEx(
         changed.astype(np.uint8),
         cv2.MORPH_CLOSE,
-        np.ones((3, 3), np.uint8),
+        cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3)),
     ).astype(bool)
     changed &= valid_tiles
     residual_changed = float(changed.sum() / max(valid_tiles.sum(), 1))

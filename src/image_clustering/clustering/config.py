@@ -51,8 +51,11 @@ class ClusterConfig:
     ink_tolerance_fraction: float = 0.0025
     ink_tile_union_threshold: float = 0.08
     ink_tile_valid_threshold: float = 0.004
-    content_tile_rows: int = 10
-    content_tile_columns: int = 14
+    # A finer grid prevents distributed handwriting from being closed into one
+    # page-sized rectangle. The 18x24 default remained below one second per pair
+    # on the July 2026 reviewed calibration set at a 900 px working dimension.
+    content_tile_rows: int = 18
+    content_tile_columns: int = 24
 
     # Near duplicates require essentially exact document-specific ink.
     duplicate_min_feature_overlap: float = 0.08
@@ -61,8 +64,10 @@ class ClusterConfig:
     duplicate_max_unmatched_ink_union_fraction: float = 0.02
     duplicate_max_ink_mismatch_tiles_fraction: float = 0.10
 
-    # Non-duplicate pairs are accepted only when a physical occluder explains
-    # nearly all meaningful disagreement.
+    # Non-duplicate pairs are accepted only when one or two large contiguous
+    # regions explain the disagreement. Candidate generation is deliberately a
+    # little more permissive than the final page-support gates because a skewed
+    # or warped polygon can fragment at tile boundaries.
     residual_upper_tail_fraction: float = 0.20
     residual_stable_fraction: float = 0.58
     residual_min_scale: float = 0.012
@@ -70,17 +75,57 @@ class ClusterConfig:
     residual_changed_min_absolute: float = 0.075
     occlusion_min_feature_overlap: float = 0.10
     occlusion_min_component_tiles: int = 2
-    occlusion_min_page_area_fraction: float = 0.025
+    occlusion_min_page_area_fraction: float = 0.18
     occlusion_padding_x_fraction: float = 0.05
     occlusion_padding_y_fraction: float = 0.08
+    # A whole page is an occluder only when the residual is both broad and
+    # material. Ink disagreement alone is exactly what same-template hard
+    # negatives look like, so it must never trigger the full-page shortcut.
+    occlusion_full_page_min_changed_fraction: float = 0.72
+    occlusion_full_page_min_material_fraction: float = 0.10
+    occlusion_full_page_strong_material_fraction: float = 0.34
+    occlusion_full_page_strong_material_min_changed_fraction: float = 0.18
+
+    # Legacy full-page thresholds retained for configuration compatibility.
     occlusion_full_page_tile_fraction: float = 0.90
     occlusion_full_page_ink_tile_fraction: float = 0.60
     occlusion_full_page_material_fraction: float = 0.30
     occlusion_full_page_low_changed_fraction: float = 0.15
     occlusion_full_page_min_ink_mismatch_fraction: float = 0.45
+
+    # Final physical-occlusion gates. ``occlusion_area_fraction`` is measured
+    # from actual connected support (plus a narrow seam tolerance), not from a
+    # component's bounding rectangle. Page support is normalized per candidate
+    # so two-page spreads are comparable with single pages.
+    occlusion_min_page_support_fraction: float = 0.22
+    occlusion_strong_min_page_support_fraction: float = 0.15
+    occlusion_min_support_fill_fraction: float = 0.20
+    occlusion_min_residual_capture: float = 0.38
+    occlusion_strong_changed_fraction: float = 0.51
+    occlusion_material_changed_fraction: float = 0.40
+    occlusion_min_material_median: float = 0.024
+    occlusion_clean_changed_fraction: float = 0.34
+    occlusion_clean_max_outside_unmatched_ink_union_fraction: float = 0.015
+    occlusion_clean_min_page_support_fraction: float = 0.40
+    occlusion_geometric_min_page_support_fraction: float = 0.30
+    occlusion_geometric_min_residual_capture: float = 0.75
+    occlusion_geometric_min_material_median: float = 0.020
+    occlusion_geometric_max_outside_unmatched_ink_union_fraction: float = 0.015
+    occlusion_geometric_max_outside_ink_mismatch_tiles_fraction: float = 0.10
+    occlusion_extreme_changed_fraction: float = 0.65
+    occlusion_extreme_min_residual_capture: float = 0.55
+    occlusion_extreme_min_material_median: float = 0.020
+    occlusion_strong_max_outside_unmatched_ink_union_fraction: float = 0.08
+    occlusion_extreme_max_outside_unmatched_ink_union_fraction: float = 0.30
+    occlusion_strong_max_outside_ink_mismatch_tiles_fraction: float = 0.45
+    occlusion_extreme_max_outside_ink_mismatch_tiles_fraction: float = 0.55
+    occlusion_different_record_min_unmatched_ink_union_fraction: float = 0.45
+    occlusion_different_record_min_ink_mismatch_tiles_fraction: float = 0.75
+    occlusion_different_record_max_material_median: float = 0.035
+
+    # Legacy diagnostic thresholds retained for configuration compatibility.
     occlusion_min_area_fraction: float = 0.025
     occlusion_max_area_fraction: float = 0.85
-    occlusion_min_residual_capture: float = 0.45
     occlusion_strong_boundary_min_capture: float = 0.30
     occlusion_min_boundary_score: float = 0.90
     occlusion_strong_boundary_score: float = 1.45
@@ -88,7 +133,7 @@ class ClusterConfig:
     occlusion_large_clean_max_area_fraction: float = 0.95
     occlusion_large_clean_max_unmatched_ink_union_fraction: float = 0.08
     occlusion_max_outside_unmatched_ink_fraction: float = 0.028
-    occlusion_max_outside_unmatched_ink_union_fraction: float = 0.115
+    occlusion_max_outside_unmatched_ink_union_fraction: float = 0.06
     occlusion_max_outside_ink_mismatch_tiles_fraction: float = 0.30
     occlusion_shallow_max_height_fraction: float = 0.30
     occlusion_shallow_min_width_fraction: float = 0.50
@@ -97,11 +142,17 @@ class ClusterConfig:
     gutter_search_max_fraction: float = 0.66
     gutter_min_prominence: float = 0.18
 
-    # A registered rejection blocks a transitive graph merge only when both
-    # ink and residual disagreement are distributed rather than occlusion-like.
-    contradiction_min_ink_mismatch_tiles_fraction: float = 0.25
+    # A registered rejection blocks a transitive graph merge when document ink
+    # is replaced across the form or residual disagreement remains distributed
+    # outside any plausible physical occlusion.
+    contradiction_min_ink_mismatch_tiles_fraction: float = 0.20
     contradiction_min_residual_tiles_changed_fraction: float = 0.18
     contradiction_min_unmatched_ink_union_fraction: float = 0.06
+    contradiction_min_outside_unmatched_ink_union_fraction: float = 0.08
+    contradiction_min_outside_ink_mismatch_tiles_fraction: float = 0.04
+    contradiction_text_min_unmatched_ink_union_fraction: float = 0.08
+    contradiction_text_min_ink_mismatch_tiles_fraction: float = 0.12
+    contradiction_text_max_material_median: float = 0.020
     contradiction_overwhelming_ink_tiles_fraction: float = 0.70
     contradiction_overwhelming_unmatched_ink_union_fraction: float = 0.25
     contradiction_overwhelming_outside_ink_union_fraction: float = 0.20
@@ -160,14 +211,42 @@ class ClusterConfig:
             "occlusion_min_page_area_fraction",
             "occlusion_padding_x_fraction",
             "occlusion_padding_y_fraction",
+            "occlusion_full_page_min_changed_fraction",
+            "occlusion_full_page_min_material_fraction",
+            "occlusion_full_page_strong_material_fraction",
+            "occlusion_full_page_strong_material_min_changed_fraction",
             "occlusion_full_page_tile_fraction",
             "occlusion_full_page_ink_tile_fraction",
             "occlusion_full_page_material_fraction",
             "occlusion_full_page_low_changed_fraction",
             "occlusion_full_page_min_ink_mismatch_fraction",
+            "occlusion_min_page_support_fraction",
+            "occlusion_strong_min_page_support_fraction",
+            "occlusion_min_support_fill_fraction",
+            "occlusion_min_residual_capture",
+            "occlusion_strong_changed_fraction",
+            "occlusion_material_changed_fraction",
+            "occlusion_min_material_median",
+            "occlusion_clean_changed_fraction",
+            "occlusion_clean_max_outside_unmatched_ink_union_fraction",
+            "occlusion_clean_min_page_support_fraction",
+            "occlusion_geometric_min_page_support_fraction",
+            "occlusion_geometric_min_residual_capture",
+            "occlusion_geometric_min_material_median",
+            "occlusion_geometric_max_outside_unmatched_ink_union_fraction",
+            "occlusion_geometric_max_outside_ink_mismatch_tiles_fraction",
+            "occlusion_extreme_changed_fraction",
+            "occlusion_extreme_min_residual_capture",
+            "occlusion_extreme_min_material_median",
+            "occlusion_strong_max_outside_unmatched_ink_union_fraction",
+            "occlusion_extreme_max_outside_unmatched_ink_union_fraction",
+            "occlusion_strong_max_outside_ink_mismatch_tiles_fraction",
+            "occlusion_extreme_max_outside_ink_mismatch_tiles_fraction",
+            "occlusion_different_record_min_unmatched_ink_union_fraction",
+            "occlusion_different_record_min_ink_mismatch_tiles_fraction",
+            "occlusion_different_record_max_material_median",
             "occlusion_min_area_fraction",
             "occlusion_max_area_fraction",
-            "occlusion_min_residual_capture",
             "occlusion_strong_boundary_min_capture",
             "occlusion_min_material_fraction",
             "occlusion_large_clean_max_area_fraction",
@@ -183,6 +262,11 @@ class ClusterConfig:
             "contradiction_min_ink_mismatch_tiles_fraction",
             "contradiction_min_residual_tiles_changed_fraction",
             "contradiction_min_unmatched_ink_union_fraction",
+            "contradiction_min_outside_unmatched_ink_union_fraction",
+            "contradiction_min_outside_ink_mismatch_tiles_fraction",
+            "contradiction_text_min_unmatched_ink_union_fraction",
+            "contradiction_text_min_ink_mismatch_tiles_fraction",
+            "contradiction_text_max_material_median",
             "contradiction_overwhelming_ink_tiles_fraction",
             "contradiction_overwhelming_unmatched_ink_union_fraction",
             "contradiction_overwhelming_outside_ink_union_fraction",
@@ -203,14 +287,7 @@ class ClusterConfig:
 
     @classmethod
     def from_json(cls, path: Path | None) -> ClusterConfig:
-        """Load configuration overrides from JSON.
-
-        Args:
-            path: JSON file containing dataclass field overrides, or `None`.
-
-        Returns:
-            A validated configuration object.
-        """
+        """Load configuration overrides from JSON."""
         if path is None:
             return cls()
         values = json.loads(path.read_text(encoding="utf-8"))
