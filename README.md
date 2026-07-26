@@ -1,183 +1,157 @@
-# image-clustering
+# image_clustering
 
-Conservative clustering for repeated archival document captures, plus sequence-level
-unique crop recovery for downstream recognition.
+A Python package for conservatively grouping ordered document images that show the **same physical document scene** under changing occlusions, then recovering the unique pages and data-bearing foreground sheets that should be submitted to recognition.
 
-The package treats these as separate contracts:
+It is deliberately not a form-template clusterer. Two filled copies of the same printed form remain separate even when their layouts are almost identical.
 
-1. `image_clustering.clustering` decides which nearby images show the same physical
-   document scene.
-2. `image_clustering.cropping` consumes those clusters and emits the minimum useful set
-   of recognizer submissions.
+## Package boundaries
 
-The clustering API does not depend on the cropper. The cropper is allowed to reuse
-accepted clustering transforms and to run its own registration/refinement when needed.
+### `image_clustering.clustering`
 
-## Installation
+- discover independent filename-ordered sequences;
+- compare nearby images within a sequence;
+- estimate pairwise registration;
+- distinguish near duplicates, physical occlusion states, and different filled documents;
+- treat distributed handwriting disagreement as a hard contradiction;
+- form conservative graph components;
+- expose accepted registrations and diagnostics downstream.
+
+### `image_clustering.cropping`
+
+- consume `ClusteringResult`;
+- align all views within a cluster;
+- choose the best observation of each persistent page;
+- recover distinct data-bearing foreground sheets;
+- suppress reverse sheets, blank occluders, and duplicate states;
+- guarantee that a content-bearing accepted cluster yields recognizer input, even when all views are literal duplicates;
+- emit `partial_best_available` or review-required pages rather than silently calling an occluded page complete.
+
+### `image_clustering.evaluation`
+
+`examples/evaluation/reviewed_cases.jsonl` is the canonical append-friendly store for user-reviewed clusters, non-clusters, and exact crop targets. The private images are not committed; labels reference their filenames.
 
 ```bash
-pip install -e .
+# Same template, different filled documents
+image-label pair examples/evaluation/reviewed_cases.jsonl \
+  image_a.j2k image_b.j2k --different
+
+# Exact same filled document photographed twice
+image-label pair examples/evaluation/reviewed_cases.jsonl \
+  image_a.j2k image_b.j2k --near-duplicate
+
+# Same physical scene with an overlay/occlusion
+image-label pair examples/evaluation/reviewed_cases.jsonl \
+  image_a.j2k image_b.j2k --occlusion
+
+# Add an exact reviewed crop (normalized coordinates by default)
+image-label crop examples/evaluation/reviewed_cases.jsonl \
+  CASE_ID image_a.j2k 0.02 0.015 0.50 0.985 \
+  --kind base_page --completeness complete --side left
+
+image-label validate examples/evaluation/reviewed_cases.jsonl
+image-label list examples/evaluation/reviewed_cases.jsonl
 ```
 
-Development tools:
+Every positive reviewed case requires `expected_min_submissions >= 1`. A near-duplicate cluster therefore cannot disappear from crop mode merely because it has no changed region.
+
+## Install
 
 ```bash
-pip install -e ".[dev]"
+python -m pip install -e .
 ```
 
-## Clustering
+## Python API
 
 ```python
-from image_clustering import ClusterConfig, cluster_directory
+from pathlib import Path
+
+from image_clustering import (
+    ClusterConfig,
+    crop_clustering_result,
+    cluster_directory,
+)
 
 result = cluster_directory(
-    "path/to/ordered-images",
+    input_dir=Path("/path/to/images"),
     config=ClusterConfig(max_gap=3),
+    cache_dir=Path("/path/to/output/.feature_cache"),
 )
 
 for cluster in result.clusters:
-    print(cluster.cluster_id, cluster.image_ids)
-```
+    images = result.images_for(cluster.cluster_id)
+    registrations = result.accepted_comparisons(cluster.cluster_id)
 
-By default, every immediate parent folder is an independent sequence. Images are sorted
-by natural filename order and never clustered across those sequence boundaries.
-
-For sampled datasets where each source row names a center image and its neighbors, pass
-that manifest explicitly so unrelated triplets in one folder remain independent:
-
-```python
-result = cluster_directory(
-    "path/to/sample",
-    triplet_manifest="path/to/selected_images_500_with_neighbors_manifest.csv",
-)
-```
-
-The manifest must contain `sampled_image`, `before_image`, and `after_image`. Paths are
-matched against the discovered source paths by exact normalized path, then by the longest
-unique suffix. Ambiguous or missing entries fail loudly.
-
-Clustering output includes:
-
-- stable source image IDs and sequence order;
-- complete cluster membership;
-- accepted and rejected nearby pair comparisons;
-- source-pixel transforms for accepted direct registrations;
-- registration, content-agreement, occlusion, and hard-contradiction diagnostics;
-- the grouping mode and manifest path used for the run.
-
-### Clustering invariants
-
-These are correctness constraints, not optional heuristics:
-
-- **Same form does not mean same record.** Different records can share an almost
-  pixel-identical printed template while only handwritten or typewritten names, dates,
-  places, signatures, or values differ. Those pairs must be rejected and must block an
-  indirect transitive merge.
-- **A real occlusion is large and contiguous.** It is normally one large polygon per
-  page, usually rectangular but possibly skewed or mildly warped. It is typically at
-  least about one third of the page and often one half or more.
-- **Exterior agreement is the decisive signal.** After registration, most of the
-  unoccluded form should match nearly pixel-for-pixel. A dense noisy region with a clean
-  exterior is occlusion-like; residual or ink disagreement spread across the page is a
-  different record.
-- **A bounding box is not support.** Sparse handwriting changes can have a huge bounding
-  rectangle. Candidate scoring must use the actual connected changed support, not every
-  pixel or tile inside that rectangle.
-- **Registration is necessary but not sufficient.** SIFT/RANSAC establishes geometric
-  correspondence. It does not prove that document-specific ink belongs to the same
-  physical record.
-
-The July 2026 calibration, alternatives tested, timings, and threshold rationale are
-recorded in [`docs/CLUSTERING_CALIBRATION_20260726.md`](docs/CLUSTERING_CALIBRATION_20260726.md).
-
-## Unique crop recovery
-
-```python
-from image_clustering.cropping import CropConfig, recover_unique_crops
-
-crop_result = recover_unique_crops(
+crop_manifest = crop_clustering_result(
     clustering=result,
-    output_dir="outputs/crops",
-    config=CropConfig(),
+    output_dir=Path("/path/to/output/cropping"),
 )
 ```
 
-Or run the end-to-end command:
+`PairComparison.transform` is a 3×3 source-pixel transform mapping the second image into the first image.
+
+## CLI
+
+Clustering:
 
 ```bash
-image-crop path/to/ordered-images outputs/crops \
-  --cluster-json outputs/clustering.json
-```
-
-The cropper writes:
-
-- `crops/<crop-id>.png` recognizer-ready images;
-- `annotations/<cluster-id>.png` original views with exact crop polygons;
-- `manifests/<cluster-id>.json` per-cluster decisions and diagnostics;
-- `crops.json` machine-readable crop metadata;
-- `manifest.json` the complete run result;
-- `review.html` a static human-review page.
-
-The cropper may emit:
-
-- one base document crop when a single view contains the full readable page;
-- one data-bearing overlay crop when an insert introduces unique text;
-- one crop per distinct page state when an occluder hides data and no single view is
-  complete;
-- review-required best-available submissions when the evidence is not strong enough for
-  an automatic complete answer.
-
-It will not silently return zero crops for a non-empty cluster.
-
-## Reviewing and correcting output
-
-The static `review.html` is optimized for fast full-resolution inspection. It shows the
-full source image with crop overlays, supports cluster-to-cluster navigation, and records
-three decisions:
-
-- cluster membership is correct;
-- crop set is correct;
-- edited crop rectangles in source-image coordinates.
-
-Serve the output directory so the browser can persist labels through the review API:
-
-```bash
-image-review outputs/crops --port 8765
-```
-
-Then open `http://127.0.0.1:8765/review.html`. Decisions are appended to
-`review_labels/clusters_reviewed.jsonl` and `review_labels/crops_reviewed.jsonl`, with the
-latest revision for each key treated as authoritative. `review_labels/review_export.json`
-is refreshed after every save for the next training or evaluation run.
-
-## Configuration
-
-Clustering configuration can be supplied as JSON:
-
-```bash
-image-cluster path/to/images outputs/clustering.json \
+image-cluster \
+  --input_dir /path/to/images \
+  --output_dir /path/to/results \
   --config configs/default.json
 ```
 
-Crop configuration can be supplied as YAML or JSON:
+Cropping from a saved clustering result:
 
 ```bash
-image-crop path/to/images outputs/crops \
-  --config configs/cropping_default.yaml
+image-crop \
+  --clustering_json /path/to/results/clustering.json \
+  --output_dir /path/to/crop-results \
+  --crop_config configs/cropping_default.yaml
 ```
 
-Defaults favor false splits over false merges. This is deliberate: merging different
-records corrupts recognition context, while a split can be reviewed or rejoined later.
-The checked-in clustering default is calibrated for large physical overlays and
-same-template/different-record hard negatives; do not loosen it based only on aggregate
-cluster count.
+The clustering CLI writes:
 
-## Development
+- `clustering.json`;
+- `pair_scores.csv`;
+- `run.json`.
+
+The cropper writes crops, review-queue items, annotations, per-cluster manifests, and aggregate `cropping.json`.
+
+Images in different parent folders are never compared. Images within each folder are sorted by filename. Candidate comparisons are limited to the next `max_gap` images, so runtime is linear in sequence length for fixed `max_gap`.
+
+## Clustering invariants
+
+These are correctness constraints, not optional heuristics:
+
+- **Same form does not mean same record.** Different records can share an almost pixel-identical printed template while only handwritten or typewritten names, dates, places, signatures, or values differ. Those pairs must be rejected and must block an indirect transitive merge.
+- **A real occlusion is large and contiguous.** It is normally one large polygon per page, usually rectangular but possibly skewed or mildly warped. It is typically at least about one third of the page and often one half or more.
+- **Exterior agreement is decisive.** After registration, most of the unoccluded form should match nearly pixel-for-pixel. A dense noisy region with a clean exterior is occlusion-like; residual or ink disagreement spread across the page is a different record.
+- **A bounding box is not support.** Sparse handwriting changes can have a huge bounding rectangle. Candidate scoring must use the actual connected changed support, not every pixel or tile inside that rectangle.
+- **Registration is necessary but not sufficient.** SIFT/RANSAC establishes geometric correspondence. It does not prove that document-specific ink belongs to the same physical record.
+
+A pair is accepted only as either a near duplicate with essentially identical document-specific ink, or the same scene with a large coherent physical occlusion and near-exact agreement outside it. A registered hard contradiction prevents a transitive graph bridge. Registration failure alone does not block a bridge because heavily occluded views may share little direct visible content.
+
+The July 2026 calibration, alternatives tested, timing, and threshold rationale are recorded in [`docs/CLUSTERING_CALIBRATION_20260726.md`](docs/CLUSTERING_CALIBRATION_20260726.md).
+
+## Explicit neighbor-group manifests
+
+Folder ordering remains the default. For curated neighbor samples, pass a CSV manifest with `source_sample_row`, `neighbor_of`, `media_item_id`, and `filename`; optional `relative_path` and `sequence_index` columns disambiguate and order images. Manifest groups are independent and may contain any number of images unless `ClusterConfig.max_cluster_size` is explicitly set.
 
 ```bash
-pytest
-ruff check .
-ruff format --check .
+image-crop \
+  --input_dir /path/to/images \
+  --triplet_manifest /path/to/neighbor_groups.csv \
+  --output_dir /path/to/results \
+  --cluster_config configs/default.json \
+  --crop_config configs/cropping_default.yaml
 ```
 
-Design and calibration notes live in `docs/`.
+## Evaluation and review
+
+`scripts/evaluate_dataset.py` creates the inventory, clustering/crop reports, validation output, and fast HTML review for a complete run. The local review application then supports keyboard-first membership decisions, bounding-box editing, undo, irregular exclusions, and corrected exports without modifying canonical clustering or crop artifacts.
+
+```bash
+image-review --output_dir /path/to/completed-evaluation
+```
+
+Review decisions and corrected exports are written under `<output_dir>/review_labels/`.
