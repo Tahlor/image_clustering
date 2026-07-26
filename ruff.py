@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def main() -> None:
-    """Run Ruff/pytest and embed the exact checkout in Ruff's artifact."""
+    """Run Ruff/pytest and emit exact synthetic metrics plus checkout."""
     binary = shutil.which("ruff")
     if binary is None:
         raise RuntimeError("ruff executable not found")
@@ -31,6 +31,26 @@ def main() -> None:
     print("\n=== PYTEST DEBUG ===")
     print(tests.stdout)
     print(tests.stderr)
+
+    sys.path.insert(0, "tests")
+    from test_content_scoring import _decision_for, _filled_form
+
+    from image_clustering.clustering.config import ClusterConfig
+    from image_clustering.clustering.scoring_decision import (
+        _hard_contradiction,
+        _looks_like_different_filled_record,
+    )
+
+    accepted, branch, reason, content = _decision_for(_filled_form(1), _filled_form(2))
+    print("=== SYNTHETIC_METRICS_BEGIN ===")
+    print("accepted", accepted, "branch", branch, "reason", reason)
+    print(content)
+    print("hard", _hard_contradiction(False, content, ClusterConfig()))
+    print(
+        "different_filled_record",
+        _looks_like_different_filled_record(content, ClusterConfig()),
+    )
+    print("=== SYNTHETIC_METRICS_END ===")
 
     archive = Path("/tmp/image-clustering-checkout.tar.gz")
     subprocess.run(
