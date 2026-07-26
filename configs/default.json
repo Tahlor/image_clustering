@@ -57,7 +57,7 @@
   "contradiction_min_outside_unmatched_ink_union_fraction": 0.08,
   "contradiction_min_outside_ink_mismatch_tiles_fraction": 0.04,
   "contradiction_text_min_unmatched_ink_union_fraction": 0.08,
-  "contradiction_text_min_ink_mismatch_tiles_fraction": 0.12,
+  "contradiction_text_min_ink_mismatch_tiles_fraction": 0.09,
   "contradiction_text_max_material_median": 0.02,
   "workers": 0
 }
