@@ -253,6 +253,12 @@ def _decision(
             None,
             "document-specific ink disagrees outside candidate occlusion",
         )
+    if _hard_contradiction(False, content, config):
+        return (
+            False,
+            None,
+            "distributed document-specific ink or exterior disagreement",
+        )
     return (
         False,
         None,
