@@ -119,14 +119,19 @@ The cropper writes crops, review-queue items, annotations, per-cluster manifests
 
 Images in different parent folders are never compared. Images within each folder are sorted by filename. Candidate comparisons are limited to the next `max_gap` images, so runtime is linear in sequence length for fixed `max_gap`.
 
-## Safety against same-template merges
+## Clustering invariants
 
-Feature overlap is used to establish registration, not to prove identity. After registration, the scorer compares locally normalized ink and gradients. A pair is accepted only as either:
+These are correctness constraints, not optional heuristics:
 
-- a near duplicate with essentially identical document-specific ink; or
-- the same scene with a coherent physical occlusion and near-exact agreement outside it.
+- **Same form does not mean same record.** Different records can share an almost pixel-identical printed template while only handwritten or typewritten names, dates, places, signatures, or values differ. Those pairs must be rejected and must block an indirect transitive merge.
+- **A real occlusion is large and contiguous.** It is normally one large polygon per page, usually rectangular but possibly skewed or mildly warped. It is typically at least about one third of the page and often one half or more.
+- **Exterior agreement is decisive.** After registration, most of the unoccluded form should match nearly pixel-for-pixel. A dense noisy region with a clean exterior is occlusion-like; residual or ink disagreement spread across the page is a different record.
+- **A bounding box is not support.** Sparse handwriting changes can have a huge bounding rectangle. Candidate scoring must use the actual connected changed support, not every pixel or tile inside that rectangle.
+- **Registration is necessary but not sufficient.** SIFT/RANSAC establishes geometric correspondence. It does not prove that document-specific ink belongs to the same physical record.
 
-Distributed handwriting, names, dates, and signatures that do not match are hard-negative evidence. A registered hard contradiction prevents a transitive graph bridge. Registration failure alone does not block a bridge because heavily occluded views may share little direct visible content.
+A pair is accepted only as either a near duplicate with essentially identical document-specific ink, or the same scene with a large coherent physical occlusion and near-exact agreement outside it. A registered hard contradiction prevents a transitive graph bridge. Registration failure alone does not block a bridge because heavily occluded views may share little direct visible content.
+
+The July 2026 calibration, alternatives tested, timing, and threshold rationale are recorded in [`docs/CLUSTERING_CALIBRATION_20260726.md`](docs/CLUSTERING_CALIBRATION_20260726.md).
 
 ## Explicit neighbor-group manifests
 

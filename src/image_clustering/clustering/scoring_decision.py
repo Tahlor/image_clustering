@@ -27,96 +27,132 @@ def _near_duplicate(
     )
 
 
-def _physical_occlusion(
-    registration: Registration,
+def _looks_like_different_filled_record(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> bool:
+    """Detect page-wide two-sided ink replacement on a preserved form.
+
+    This is the characteristic hard negative where the printed form aligns but
+    names, dates, signatures, or typewritten values belong to another record.
+    """
+    return (
+        content.unmatched_ink_union_fraction
+        >= config.occlusion_different_record_min_unmatched_ink_union_fraction
+        and content.ink_mismatch_tiles_fraction
+        >= config.occlusion_different_record_min_ink_mismatch_tiles_fraction
+        and content.occlusion_material_median
+        < config.occlusion_different_record_max_material_median
+    )
+
+
+def _physical_occlusion(
+    registration: Registration,
+    change: dict[str, float],
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> bool:
+    """Return whether a large contiguous physical overlay explains the pair."""
     if registration.feature_overlap < config.occlusion_min_feature_overlap:
         return False
     if not 1 <= content.occlusion_candidate_count <= 2:
         return False
-    maximum_area = (
-        min(config.occlusion_max_area_fraction, 0.70)
-        if content.page_count == 1
-        else config.occlusion_max_area_fraction
-    )
-    large_clean_geometry = (
-        content.page_count == 2
-        and content.occlusion_area_fraction
-        <= config.occlusion_large_clean_max_area_fraction
-        and content.unmatched_ink_union_fraction
-        <= config.occlusion_large_clean_max_unmatched_ink_union_fraction
-        and content.outside_unmatched_ink_fraction <= 0.005
-        and content.outside_unmatched_ink_union_fraction <= 0.02
-        and content.outside_ink_mismatch_tiles_fraction <= 0.05
-    )
-    strong_material_boundary = (
-        content.occlusion_residual_capture
-        >= config.occlusion_strong_boundary_min_capture
-        and content.occlusion_material_fraction >= 0.50
-        and content.occlusion_boundary_score >= 1.50
-    )
-    if not (
-        config.occlusion_min_area_fraction <= content.occlusion_area_fraction
-        and (content.occlusion_area_fraction <= maximum_area or large_clean_geometry)
-    ):
+    if _looks_like_different_filled_record(content, config):
         return False
+
+    changed_fraction = change["changed_fraction"]
+    strong_change = changed_fraction >= config.occlusion_strong_changed_fraction
+    extreme_change = (
+        changed_fraction >= config.occlusion_extreme_changed_fraction
+        and content.occlusion_residual_capture
+        >= config.occlusion_extreme_min_residual_capture
+        and content.occlusion_material_median
+        >= config.occlusion_extreme_min_material_median
+    )
+
+    # Normalize actual connected support by page and candidate count. The
+    # candidate bounding rectangle is deliberately not used: sparse handwriting
+    # distributed around a form can have a huge bbox while occupying little of
+    # the page.
+    page_support_fraction = (
+        content.occlusion_area_fraction
+        * content.page_count
+        / max(content.occlusion_candidate_count, 1)
+    )
+    minimum_support = (
+        config.occlusion_strong_min_page_support_fraction
+        if strong_change
+        else config.occlusion_min_page_support_fraction
+    )
     if (
-        content.outside_unmatched_ink_fraction
-        > config.occlusion_max_outside_unmatched_ink_fraction
-        or content.outside_unmatched_ink_union_fraction
-        > config.occlusion_max_outside_unmatched_ink_union_fraction
-        or content.outside_ink_mismatch_tiles_fraction
-        > (
-            0.45
-            if strong_material_boundary
-            else (
-                min(config.occlusion_max_outside_ink_mismatch_tiles_fraction, 0.20)
-                if content.page_count == 1
-                else config.occlusion_max_outside_ink_mismatch_tiles_fraction
-            )
-        )
+        page_support_fraction < minimum_support
+        or content.occlusion_rectangularity
+        < config.occlusion_min_support_fill_fraction
+        or content.occlusion_residual_capture < config.occlusion_min_residual_capture
     ):
         return False
 
-    clean_outside_explanation = (
-        content.occlusion_residual_capture >= config.occlusion_min_residual_capture
-        and content.outside_unmatched_ink_union_fraction <= 0.04
-        and content.outside_unmatched_ink_fraction <= 0.01
-        and content.outside_ink_mismatch_tiles_fraction <= 0.15
-        and (
-            content.ink_mismatch_tiles_fraction <= 0.20
-            or content.unmatched_ink_union_fraction <= 0.06
+    # The union- and tile-normalized exterior checks below are meaningful even
+    # when a genuine overlay covers almost the whole page. The raw exterior
+    # fraction is intentionally not a hard gate: it is undefined (reported as
+    # 1.0) when no exterior pixels remain.
+    if extreme_change:
+        maximum_outside_union = (
+            config.occlusion_extreme_max_outside_unmatched_ink_union_fraction
         )
+        maximum_outside_tiles = (
+            config.occlusion_extreme_max_outside_ink_mismatch_tiles_fraction
+        )
+    elif strong_change:
+        maximum_outside_union = (
+            config.occlusion_strong_max_outside_unmatched_ink_union_fraction
+        )
+        maximum_outside_tiles = (
+            config.occlusion_strong_max_outside_ink_mismatch_tiles_fraction
+        )
+    else:
+        maximum_outside_union = (
+            config.occlusion_max_outside_unmatched_ink_union_fraction
+        )
+        maximum_outside_tiles = (
+            config.occlusion_max_outside_ink_mismatch_tiles_fraction
+        )
+    if (
+        content.outside_unmatched_ink_union_fraction > maximum_outside_union
+        or content.outside_ink_mismatch_tiles_fraction > maximum_outside_tiles
+    ):
+        return False
+
+    material_change = (
+        changed_fraction >= config.occlusion_material_changed_fraction
+        and content.occlusion_material_median
+        >= config.occlusion_min_material_median
     )
-    material_explanation = (
-        content.occlusion_residual_capture >= config.occlusion_min_residual_capture
-        and content.occlusion_material_fraction
-        >= config.occlusion_min_material_fraction
+    clean_large_change = (
+        changed_fraction >= config.occlusion_clean_changed_fraction
+        and content.outside_unmatched_ink_union_fraction
+        <= config.occlusion_clean_max_outside_unmatched_ink_union_fraction
+        and page_support_fraction
+        >= config.occlusion_clean_min_page_support_fraction
     )
-    standard_explanation = (
-        content.occlusion_residual_capture >= config.occlusion_min_residual_capture
-        and content.occlusion_boundary_score >= config.occlusion_min_boundary_score
-    )
-    strong_boundary_explanation = (
-        content.occlusion_residual_capture
-        >= config.occlusion_strong_boundary_min_capture
-        and content.occlusion_boundary_score >= config.occlusion_strong_boundary_score
-    )
-    full_page_explanation = (
-        content.full_page_occlusion_count >= 1
+    geometric_material_change = (
+        page_support_fraction
+        >= config.occlusion_geometric_min_page_support_fraction
         and content.occlusion_residual_capture
-        >= config.occlusion_strong_boundary_min_capture
+        >= config.occlusion_geometric_min_residual_capture
+        and content.occlusion_material_median
+        >= config.occlusion_geometric_min_material_median
+        and content.outside_unmatched_ink_union_fraction
+        <= config.occlusion_geometric_max_outside_unmatched_ink_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        <= config.occlusion_geometric_max_outside_ink_mismatch_tiles_fraction
     )
     return (
-        strong_material_boundary
-        or large_clean_geometry
-        or clean_outside_explanation
-        or material_explanation
-        or standard_explanation
-        or strong_boundary_explanation
-        or full_page_explanation
+        strong_change
+        or material_change
+        or clean_large_change
+        or geometric_material_change
+        or extreme_change
     )
 
 
@@ -126,17 +162,37 @@ def _hard_contradiction(
     config: ClusterConfig,
 ) -> bool:
     """Return whether distributed content mismatch should block graph bridging."""
-    plausible_multi_occlusion = (
-        content.occlusion_candidate_count >= 1
-        and content.occlusion_material_fraction >= 0.50
+    if accepted:
+        return False
+
+    different_filled_record = _looks_like_different_filled_record(content, config)
+    distributed_text_replacement = (
+        content.unmatched_ink_union_fraction
+        >= config.contradiction_text_min_unmatched_ink_union_fraction
+        and content.ink_mismatch_tiles_fraction
+        >= config.contradiction_text_min_ink_mismatch_tiles_fraction
+        and content.occlusion_material_median
+        <= config.contradiction_text_max_material_median
     )
-    distributed_ink_and_residual = (
+    plausible_multi_occlusion = (
+        content.occlusion_candidate_count == 2
+        and content.occlusion_material_fraction >= 0.50
+        and content.outside_unmatched_ink_union_fraction <= 0.04
+        and content.outside_ink_mismatch_tiles_fraction <= 0.15
+    )
+    distributed_ink = (
         content.ink_mismatch_tiles_fraction
         >= config.contradiction_min_ink_mismatch_tiles_fraction
-        and content.residual_tiles_changed_fraction
-        >= config.contradiction_min_residual_tiles_changed_fraction
         and content.unmatched_ink_union_fraction
         >= config.contradiction_min_unmatched_ink_union_fraction
+    )
+    distributed_exterior_residual = (
+        content.residual_tiles_changed_fraction
+        >= config.contradiction_min_residual_tiles_changed_fraction
+        and content.outside_unmatched_ink_union_fraction
+        >= config.contradiction_min_outside_unmatched_ink_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        >= config.contradiction_min_outside_ink_mismatch_tiles_fraction
     )
     overwhelming_ink_disagreement = (
         content.ink_mismatch_tiles_fraction
@@ -146,10 +202,13 @@ def _hard_contradiction(
         and content.outside_unmatched_ink_union_fraction
         >= config.contradiction_overwhelming_outside_ink_union_fraction
     )
-    return (
-        not accepted
-        and not plausible_multi_occlusion
-        and (distributed_ink_and_residual or overwhelming_ink_disagreement)
+    return different_filled_record or distributed_text_replacement or (
+        not plausible_multi_occlusion
+        and (
+            distributed_ink
+            or distributed_exterior_residual
+            or overwhelming_ink_disagreement
+        )
     )
 
 
@@ -163,18 +222,28 @@ def _decision(
         return False, None, "insufficient valid overlap after registration"
     if _near_duplicate(registration, change, content, config):
         return True, "near_duplicate", "near-exact document-specific ink agreement"
-    if _physical_occlusion(registration, content, config):
+    if _looks_like_different_filled_record(content, config):
+        return (
+            False,
+            None,
+            "same form structure but page-wide document-specific ink replacement",
+        )
+    if _physical_occlusion(registration, change, content, config):
         return (
             True,
             "physical_occlusion",
-            "coherent physical occlusion with near-exact outside ink agreement",
+            "large contiguous physical occlusion with near-exact outside agreement",
         )
     if registration.feature_overlap < config.occlusion_min_feature_overlap:
         return False, None, "too little document-specific exact feature support"
     if content.ink_mismatch_tiles_fraction >= 0.20:
         return False, None, "distributed coherent ink disagreement"
     if content.occlusion_candidate_count == 0:
-        return False, None, "no physical occlusion explains the disagreement"
+        return (
+            False,
+            None,
+            "no large contiguous physical occlusion explains the disagreement",
+        )
     if (
         content.outside_unmatched_ink_union_fraction
         > config.occlusion_max_outside_unmatched_ink_union_fraction
@@ -184,7 +253,17 @@ def _decision(
             None,
             "document-specific ink disagrees outside candidate occlusion",
         )
-    return False, None, "occlusion geometry or outside agreement was insufficient"
+    if _hard_contradiction(False, content, config):
+        return (
+            False,
+            None,
+            "distributed document-specific ink or exterior disagreement",
+        )
+    return (
+        False,
+        None,
+        "occlusion support, density, or outside agreement was insufficient",
+    )
 
 
 def _confidence(
@@ -199,7 +278,7 @@ def _confidence(
         score = 0.45 * support + 0.55 * ink
     elif branch == "physical_occlusion":
         outside = float(
-            np.clip(1.0 - content.outside_unmatched_ink_union_fraction / 0.115, 0, 1)
+            np.clip(1.0 - content.outside_unmatched_ink_union_fraction / 0.08, 0, 1)
         )
         capture = float(np.clip(content.occlusion_residual_capture / 0.70, 0, 1))
         score = 0.30 * support + 0.40 * outside + 0.30 * capture
