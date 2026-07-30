@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taylor's Cambia Interview Focus Guide</title>
+<meta name="description" content="Current public-safe Cambia AI Scientist Senior II interview focus guide: career narrative, RAG primer, and four hypothetical initiatives.">
+<style>
+:root{--bg:#f6f7fb;--panel:#fff;--ink:#1d2433;--muted:#5e687c;--line:#dce1ec;--brand:#3949ab;--brand2:#6a3fb5;--soft:#eef0ff;--good:#0b7a5c;--warn:#9a6200;--shadow:0 8px 25px rgba(35,43,78,.08)}
+@media(prefers-color-scheme:dark){:root{--bg:#11141b;--panel:#191e28;--ink:#edf1f7;--muted:#aeb8c8;--line:#303848;--brand:#9aa8ff;--brand2:#c4a7ff;--soft:#242b48;--good:#67d9b3;--warn:#ffc36e;--shadow:none}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.58 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}.layout{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh}.side{position:sticky;top:0;height:100vh;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:1.1rem}.brand{font-weight:800;font-size:1.08rem;color:var(--ink);text-decoration:none}.sub{font-size:.82rem;color:var(--muted);margin:.2rem 0 1rem}.nav-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:800;margin:1rem .45rem .3rem}.side a.nav{display:block;padding:.42rem .55rem;margin:.08rem 0;border-radius:.45rem;color:var(--ink);text-decoration:none;font-size:.9rem}.side a.nav:hover{background:var(--soft);color:var(--brand)}main{max-width:1120px;padding:2rem clamp(1.1rem,4vw,3.5rem)}.hero{padding:2rem;border-radius:1rem;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:var(--shadow)}.hero h1{font-size:clamp(2rem,5vw,3.25rem);line-height:1.08;margin:.2rem 0}.hero p{max-width:850px;font-size:1.08rem}.eyebrow{text-transform:uppercase;letter-spacing:.09em;font-weight:800;font-size:.72rem;opacity:.82}.toolbar{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem}.btn{display:inline-block;padding:.55rem .8rem;border-radius:.55rem;background:#fff;color:#303f9f;text-decoration:none;font-weight:750}.btn.alt{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.65)}section,.card,.callout{background:var(--panel);border:1px solid var(--line);border-radius:.8rem;padding:1rem 1.15rem;box-shadow:var(--shadow);margin:1rem 0}section h2{margin-top:.2rem}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:1rem}.grid .card{margin:0}.memory{font-size:1.08rem;font-weight:750;border-left:4px solid var(--brand);padding:.75rem 1rem;background:var(--soft);border-radius:.4rem;margin:1rem 0}.tag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:.14rem .5rem;margin:.12rem;font-size:.74rem;color:var(--muted)}blockquote{margin:1rem 0;padding:.75rem 1rem;border-left:4px solid var(--brand2);background:var(--soft);border-radius:.35rem}.steps{counter-reset:s;list-style:none;padding:0}.steps li{counter-increment:s;position:relative;padding-left:2.7rem;margin:.75rem 0}.steps li:before{content:counter(s);position:absolute;left:0;top:0;width:1.9rem;height:1.9rem;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:#fff;font-weight:800}table{border-collapse:collapse;width:100%;display:block;overflow:auto}th,td{padding:.58rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{font-size:.78rem;text-transform:uppercase;color:var(--muted)}code{background:var(--soft);padding:.12rem .32rem;border-radius:.3rem}.note{border-color:#e4bd69;background:color-mix(in srgb,var(--panel) 86%,#ffe7a7)}.good{color:var(--good);font-weight:750}.footer{font-size:.83rem;color:var(--muted);padding:2rem 0}.compact li{margin:.3rem 0}@media(max-width:820px){.layout{display:block}.side{position:relative;height:auto;border-right:0;border-bottom:1px solid var(--line)}.side nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}main{padding:1rem}.hero{padding:1.35rem}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="side">
+<a class="brand" href="#top">Taylor's Interview Prep</a>
+<div class="sub">Cambia AI Scientist Senior II · current focus guide</div>
+<nav>
+<div class="nav-title">Start</div>
+<a class="nav" href="#thesis">Core thesis</a>
+<a class="nav" href="#career">Career arc</a>
+<a class="nav" href="#ancestry">Why leave Ancestry?</a>
+<a class="nav" href="#healthcare">Why healthcare?</a>
+<div class="nav-title">Technical</div>
+<a class="nav" href="#rag">RAG in five minutes</a>
+<a class="nav" href="#architecture">Healthcare architecture</a>
+<a class="nav" href="#failures">Failure modes</a>
+<div class="nav-title">Initiatives</div>
+<a class="nav" href="#initiatives">Four initiatives</a>
+<a class="nav" href="#answers">Answer reminders</a>
+<a class="nav" href="#rehearsal">Rehearsal plan</a>
+</nav>
+</aside>
+<main id="top">
+<div class="hero">
+<div class="eyebrow">Cambia Health Solutions · AI Scientist Senior II</div>
+<h1>Career story, RAG, and four initiatives</h1>
+<p>A public-safe focus guide for the newest interview insights. The canonical private MkDocs source contains the full company research, STAR library, technical oral exams, and question bank.</p>
+<div class="toolbar"><a class="btn" href="#career">Start with the career story</a><a class="btn alt" href="index.html">Open the comprehensive mirror</a></div>
+</div>
+
+<section id="thesis">
+<h2>The interview thesis</h2>
+<div class="memory">I combine healthcare claims and economic context with applied AI for messy, consequential data. My distinctive value is the trust layer: representative evaluation, calibrated confidence, human review, multimodal evidence, reusable infrastructure, and a clear connection to workflow value.</div>
+<div class="grid">
+<div class="card"><h3>Healthcare continuity</h3><p>Roughly four years of healthcare economic consulting involving claims, pharmaceutical pricing and reimbursement, alleged kickbacks, market power, regulation, and litigation.</p></div>
+<div class="card"><h3>Modern AI depth</h3><p>PhD plus production-scale multimodal document AI, extraction, batching, routing, evaluation, confidence, and human-review design.</p></div>
+<div class="card"><h3>Senior-II direction</h3><p>Remain deeply technical while taking broader responsibility for architecture, mentorship, cross-functional decisions, and measurable workflow outcomes.</p></div>
+<div class="card"><h3>Selective move</h3><p>Not escaping Ancestry. Considering a rare opportunity that combines both halves of the career and offers meaningful hybrid collaboration.</p></div>
+</div>
+</section>
+
+<section id="career">
+<div class="eyebrow">Positioning</div><h2>Bates White → Ancestry → Cambia</h2>
+<div class="memory">Bates White showed me healthcare complexity after things had gone wrong. Ancestry gave me the AI tools to build reliable systems. Cambia is the chance to combine them and move upstream.</div>
+<table>
+<tr><th>Phase</th><th>What it established</th><th>Interview meaning</th></tr>
+<tr><td><b>Bates White</b></td><td>Healthcare claims, pricing/reimbursement, incentives, market power, litigation, SQL, client decisions, analyst leadership.</td><td>The healthcare interest is earned and specific, not a newly invented mission story.</td></tr>
+<tr><td><b>PhD + Ancestry</b></td><td>Multimodal AI, document intelligence, production scale, confidence, evaluation, human review, and reusable platforms.</td><td>You now have tools to improve complex information systems prospectively.</td></tr>
+<tr><td><b>Cambia</b></td><td>Customer experience, clinical support, payment integrity, architecture, mentoring, and cross-functional delivery.</td><td>Combines the two halves of the career while expanding scope.</td></tr>
+</table>
+<p><b>Accurate domain-gap line:</b></p>
+<blockquote>I have substantial healthcare claims, economics, and litigation experience, but I have not yet worked inside payer operations. I understand many of the data, incentive, and regulatory patterns; I would still need to learn Cambia's specific workflows, policies, and authority boundaries from the people who own them.</blockquote>
+</section>
+
+<section id="ancestry">
+<div class="eyebrow">Motivation</div><h2>Why consider leaving Ancestry?</h2>
+<p><b>Memory:</b> grateful → selective → broader scope → hybrid → healthcare convergence</p>
+<ul class="compact">
+<li>Current work is difficult and meaningful; do not manufacture dissatisfaction.</li>
+<li>Ancestry provided document-AI depth, research, production scale, and multimodal foundation-model experience.</li>
+<li>The desired next step expands responsibility for problem selection, architecture, mentorship, Product/Engineering partnership, and measurable outcomes.</li>
+<li>Nearly fully remote work is effective but less energizing than regular in-person collaboration; Cambia's hybrid model is a positive attraction.</li>
+<li>Cambia uniquely reunites earlier healthcare experience with current AI expertise.</li>
+</ul>
+<blockquote>I am not broadly trying to get out of Ancestry. I am selectively looking for a role that expands my scope from delivering difficult AI work to helping set technical direction and build an Applied AI capability across multiple business problems.</blockquote>
+<div class="callout note"><b>Avoid:</b> “I hate remote work,” “Ancestry has no growth,” or implying that title or compensation is the only reason. The answer should sound like attraction to a particularly strong next step.</div>
+</section>
+
+<section id="healthcare">
+<div class="eyebrow">Commitment</div><h2>Why healthcare?</h2>
+<p><b>Memory:</b> saw complexity → analyzed consequences after the fact → wanted to move upstream → practical reform</p>
+<ul class="compact">
+<li>Healthcare is compelling partly because the system is so frustrating for families, providers, insurers, and experts.</li>
+<li>Bates White work often began after years of disputed conduct or distorted incentives.</li>
+<li>The task was retrospective: reconstruct claims and economics, quantify what happened, and help allocate liability or damages.</li>
+<li>The desired move is upstream: clearer information, accurate payment, less administrative waste, better review tools, and fewer avoidable failures.</li>
+<li>AI does not solve healthcare economics, policy, or regulation by itself. It can improve specific workflows when evidence, authority, uncertainty, and human review are explicit.</li>
+</ul>
+<blockquote>I spent years analyzing healthcare failures and disputed incentives after the fact. I would like to use what I have learned about AI and complex data to improve the systems before those failures become disputes.</blockquote>
+<h3>Payment integrity is still mission work</h3>
+<p>Frame it as accurate payment, not “deny more claims”: pay legitimate claims correctly, identify real waste precisely, reduce false positives and provider friction, improve evidence consistency, and direct limited review capacity where it matters.</p>
+</section>
+
+<section id="rag">
+<div class="eyebrow">Five-minute technical primer</div><h2>Chatbots and RAG</h2>
+<div class="memory">A chatbot is the conversation interface. RAG supplies current, authoritative evidence. Tools supply live or private facts. Deterministic code handles rules and calculations. The LLM interprets the request, coordinates the pieces, and explains the result.</div>
+<h3>What RAG means</h3>
+<ol class="steps">
+<li>A user asks a question.</li>
+<li>The system searches an approved knowledge base.</li>
+<li>It filters and reranks the best passages.</li>
+<li>The passages and question are supplied to the LLM.</li>
+<li>The LLM synthesizes a grounded answer, ideally with citations.</li>
+</ol>
+<h3>Vocabulary</h3>
+<p><span class="tag">chunking</span><span class="tag">embeddings</span><span class="tag">sparse search</span><span class="tag">dense search</span><span class="tag">hybrid retrieval</span><span class="tag">reranker</span><span class="tag">metadata filter</span><span class="tag">grounding</span></p>
+<ul class="compact">
+<li><b>Sparse/keyword search:</b> exact codes, drug names, policy numbers, quoted language.</li>
+<li><b>Dense/vector search:</b> paraphrases and semantic similarity.</li>
+<li><b>Hybrid search:</b> combines both; a reranker then scores candidates more carefully.</li>
+<li><b>Metadata:</b> plan, product, state, effective date, document type, and access rights.</li>
+</ul>
+<h3>RAG versus fine-tuning</h3>
+<div class="memory">RAG changes what information the model can use at inference time. Fine-tuning changes the model's repeated behavior.</div>
+<ul class="compact">
+<li>Use <b>RAG</b> for private, changing, authoritative, and citable knowledge.</li>
+<li>Use <b>fine-tuning</b> for output format, repeated behavior, task adaptation, style, or a smaller specialized model.</li>
+<li>Fine-tuning is not a sensible database-update strategy for changing benefit policies.</li>
+</ul>
+<h3>Chatbot versus agent</h3>
+<p>A chatbot is the surface. An agent lets a model choose and sequence tools over several steps. Prefer deterministic workflows when the steps are known; add model-directed planning only where it creates measurable value.</p>
+</section>
+
+<section id="architecture">
+<div class="eyebrow">Applied design</div><h2>A sensible healthcare assistant architecture</h2>
+<div class="memory">RAG for policy knowledge, controlled tools for live member facts, deterministic logic for calculations and authority boundaries, and the LLM for orchestration and explanation.</div>
+<table>
+<tr><th>Layer</th><th>Example responsibility</th></tr>
+<tr><td><b>RAG</b></td><td>Plan documents, benefit language, medical policy, definitions, procedural guidance.</td></tr>
+<tr><td><b>Tools/APIs</b></td><td>Claim status, deductible, authorization status, network participation, member-specific records.</td></tr>
+<tr><td><b>Deterministic code</b></td><td>Eligibility, effective-date constraints, access control, financial calculations, binding rules.</td></tr>
+<tr><td><b>LLM</b></td><td>Understand intent, choose approved tools, synthesize evidence, explain in plain language.</td></tr>
+<tr><td><b>Human escalation</b></td><td>Conflicting evidence, missing authority, consequential judgment, or low confidence.</td></tr>
+</table>
+<p><b>Honest experience line:</b></p>
+<blockquote>I have not built my career around one RAG framework, but I understand the architecture and failure modes. My deeper experience is in the durable parts that determine whether it works: data and provenance, retrieval and routing, multimodal evidence, validation, confidence, and human escalation.</blockquote>
+</section>
+
+<section id="failures">
+<div class="eyebrow">Evaluation</div><h2>How RAG fails—and what to measure</h2>
+<div class="grid">
+<div class="card"><h3>Retrieval failure</h3><p>The right source is absent, buried, badly chunked, or outranked.</p></div>
+<div class="card"><h3>Wrong authority</h3><p>Right topic, wrong plan, state, product, member, version, or effective date.</p></div>
+<div class="card"><h3>Synthesis failure</h3><p>Correct evidence is present but misread, exceptions are lost, or the answer extrapolates.</p></div>
+<div class="card"><h3>Security failure</h3><p>The model or retrieval layer exposes information the user is not authorized to access.</p></div>
+</div>
+<h3>Evaluate three layers</h3>
+<ul class="compact">
+<li><b>Retrieval:</b> evidence recall, authority/version, filters, reranker quality.</li>
+<li><b>Answer:</b> correctness, citation support, completeness, contradiction, abstention.</li>
+<li><b>Workflow:</b> resolution, repeat contact, corrections, complaints, appeals, latency, cost, privacy, and subgroup burden.</li>
+</ul>
+</section>
+
+<section id="initiatives">
+<div class="eyebrow">Pretend you started the job</div><h2>Four hypothetical initiatives</h2>
+<div class="grid">
+<div class="card"><h3>1. Payment-integrity reviewer workbench</h3><p>Rank claims or episodes by expected validated value and reviewer effort; retrieve governing evidence; parse attachments; create a cited evidence packet. Optimize precision and value at real queue capacity, not anomaly score alone.</p><p><b>Measures:</b> validated dollars per hour, precision at capacity, reviewer time, overturns, false-positive/provider burden.</p></div>
+<div class="card"><h3>2. Prior-authorization intake and evidence copilot</h3><p>Classify pages, link attachments, validate plan/effective date, retrieve the correct policy, map evidence to criteria, identify missing information, and create a structured cited summary for human review.</p><p><b>Boundary:</b> improve completeness and review readiness before considering autonomous judgment.</p></div>
+<div class="card"><h3>3. Member benefits-and-claims answer assurance</h3><p>Use RAG for policy, tools for live facts, deterministic calculations, citations, verification, abstention, and warm transfer. Start with a narrow set of high-volume intents rather than a universal chatbot.</p><p><b>Measures:</b> exact correctness, source support, resolution, repeat contact, complaints, language/accessibility, privacy.</p></div>
+<div class="card"><h3>4. Enterprise evaluation and confidence platform</h3><p>Version datasets, models, prompts, tools, retrieval corpora, rubrics, thresholds, and adjudication. Support risk–coverage curves, random audits, launch evidence, production replay, and vendor-change regression.</p><p><b>Guardrail:</b> build reusable components from real use cases, not an abstract platform without users.</p></div>
+</div>
+<div class="memory">My lane is not autonomous healthcare judgment. It is turning messy multimodal evidence and probabilistic models into a cited, calibrated, reviewable workflow that helps the accountable person make a better decision.</div>
+</section>
+
+<section id="answers">
+<div class="eyebrow">Keyword cards</div><h2>Answer reminders</h2>
+<table>
+<tr><th>Question</th><th>Memory line</th><th>Must land</th></tr>
+<tr><td>Tell me about yourself</td><td>healthcare consulting → AI depth → trust layer → Cambia</td><td>Full career arc, scale, hands-on leadership, why this role.</td></tr>
+<tr><td>Why healthcare?</td><td>retrospective → prospective</td><td>Saw claims/incentives up close; wants practical upstream improvement, not naïve disruption.</td></tr>
+<tr><td>Why leave Ancestry?</td><td>grateful → selective → broader scope → hybrid</td><td>Positive reasons, more leadership/ownership, in-person collaboration, career convergence.</td></tr>
+<tr><td>What is RAG?</td><td>retrieve evidence → filter/rerank → grounded answer → evaluate pipeline</td><td>Policy retrieval, live tools, deterministic logic, citations, failure modes.</td></tr>
+<tr><td>Why should Cambia hire you?</td><td>healthcare context + multimodal + confidence + workflow value</td><td>Not just a model builder; makes probabilistic systems operationally defensible.</td></tr>
+</table>
+</section>
+
+<section id="rehearsal">
+<div class="eyebrow">Thirty-minute pass</div><h2>Rehearse this sequence</h2>
+<ol class="steps">
+<li>Deliver the 30-second career pitch.</li>
+<li>Answer why Cambia and why healthcare separately.</li>
+<li>Answer why you are considering leaving Ancestry.</li>
+<li>Explain RAG in 30–60 seconds.</li>
+<li>Describe the healthcare assistant architecture.</li>
+<li>Choose two of the four initiatives and explain decision, harm, evidence, evaluation, and rollout.</li>
+<li>Connect one initiative to a personal proof story: Bates White, TTA, Belgium, seven million records, or Vantage.</li>
+</ol>
+<div class="callout note"><b>Delivery rule:</b> use memory bullets, not a word-for-word speech. Direct opening → stakes → personal decisions → evidence/result → business meaning → remaining risk.</div>
+</section>
+
+<div class="footer">Public-safe current-focus mirror · generated July 30, 2026 · canonical source: Tahlor/interview_prep</div>
+</main>
+</div>
+</body>
+</html>
