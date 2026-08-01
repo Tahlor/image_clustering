@@ -5,12 +5,10 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from image_clustering.clustering.candidate_scoring import pair_probabilities
 from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content import analyze_content, local_dissimilarity
-from image_clustering.clustering.models import (
-    ImageFeatures,
-    PairComparison,
-)
+from image_clustering.clustering.models import ImageFeatures, PairComparison
 from image_clustering.clustering.registration import (
     register_pair,
     source_pixel_transform,
@@ -119,6 +117,8 @@ def score_pair(
             confidence=0.0,
             reason=registration.reason or "registration rejected",
             good_match_count=registration.good_match_count,
+            registration_fallback_used=registration.fallback_used,
+            registration_alignment_score=registration.alignment_score,
         )
     aligned, valid_mask = warp_current(
         current_gray=current.gray,
@@ -159,6 +159,14 @@ def score_pair(
         registration=registration,
         content=content,
     )
+    probabilities = pair_probabilities(
+        registration=registration,
+        change=change,
+        content=content,
+        accepted=accepted,
+        hard_contradiction=contradiction,
+        candidate_threshold=config.occlusion_candidate_probability_threshold,
+    )
     return PairComparison(
         first_image_id=previous.image.image_id,
         second_image_id=current.image.image_id,
@@ -178,6 +186,8 @@ def score_pair(
         inlier_ratio=registration.inlier_ratio,
         feature_overlap=registration.feature_overlap,
         median_reprojection_error=registration.median_reprojection_error,
+        registration_fallback_used=registration.fallback_used,
+        registration_alignment_score=registration.alignment_score,
         valid_fraction=change["valid_fraction"],
         changed_fraction=change["changed_fraction"],
         stable_fraction=change["stable_fraction"],
@@ -208,4 +218,12 @@ def score_pair(
         page_count=content.page_count,
         hard_contradiction=contradiction,
         branch=branch,
+        probability_model_version=probabilities.model_version,
+        same_document_probability=probabilities.same_document,
+        occluded_given_same_probability=probabilities.occluded_given_same,
+        same_clean_probability=probabilities.same_clean,
+        same_occluded_probability=probabilities.same_occluded,
+        different_document_probability=probabilities.different_document,
+        occlusion_candidate_flag=probabilities.candidate_flag,
+        automatic_link_eligible=probabilities.automatic_link_eligible,
     )
