@@ -18,6 +18,7 @@ def _pair(
     accepted: bool,
     score: float,
     contradiction: bool = False,
+    acceptance_conflict: bool = False,
 ) -> PairComparison:
     return PairComparison(
         first_image_id=first,
@@ -34,6 +35,12 @@ def _pair(
         occlusion_candidate_flag=True,
         automatic_link_eligible=accepted,
         hard_contradiction=contradiction,
+        unmatched_ink_union_fraction=(0.20 if acceptance_conflict else 0.02),
+        ink_mismatch_tiles_fraction=(0.20 if acceptance_conflict else 0.02),
+        residual_tiles_changed_fraction=0.10,
+        occlusion_material_median=0.0,
+        outside_unmatched_ink_union_fraction=0.01,
+        outside_ink_mismatch_tiles_fraction=0.01,
     )
 
 
@@ -44,7 +51,13 @@ def _result() -> ClusteringResult:
         for index, image_id in enumerate(ids)
     )
     comparisons = (
-        _pair("a.jpg", "b.jpg", accepted=True, score=0.8),
+        _pair(
+            "a.jpg",
+            "b.jpg",
+            accepted=True,
+            score=0.8,
+            acceptance_conflict=True,
+        ),
         _pair("b.jpg", "c.jpg", accepted=True, score=0.8),
         _pair("a.jpg", "c.jpg", accepted=False, score=0.7),
         _pair("c.jpg", "d.jpg", accepted=False, score=0.9),
@@ -69,11 +82,20 @@ def _result() -> ClusteringResult:
     )
 
 
+def test_acceptance_conflict_is_always_surfaced_first() -> None:
+    candidates = rank_occlusion_candidates(_result())
+    assert [candidate.review_tier for candidate in candidates] == [0, 1, 3, 4]
+    assert candidates[0].deterministic_same_document
+    assert candidates[0].raw_hard_contradiction
+    assert candidates[0].acceptance_conflict
+
+
 def test_sequence_context_prioritizes_common_neighbor() -> None:
     candidates = rank_occlusion_candidates(_result())
-    assert [candidate.review_tier for candidate in candidates] == [1, 3, 4]
-    assert candidates[0].common_accepted_neighbors == ("b.jpg",)
-    assert candidates[0].same_component
+    bridge = candidates[1]
+    assert bridge.review_tier == 1
+    assert bridge.common_accepted_neighbors == ("b.jpg",)
+    assert bridge.same_component
 
 
 def test_hard_contradiction_never_becomes_link() -> None:
@@ -83,9 +105,9 @@ def test_hard_contradiction_never_becomes_link() -> None:
     assert not candidate.automatic_link_eligible
 
 
-def test_accepted_pairs_are_excluded_by_default() -> None:
+def test_nonconflicting_accepted_pairs_are_excluded_by_default() -> None:
     default = rank_occlusion_candidates(_result())
     with_accepted = rank_occlusion_candidates(_result(), include_accepted=True)
-    assert len(default) == 3
+    assert len(default) == 4
     assert len(with_accepted) == 5
-    assert with_accepted[0].review_tier == 0
+    assert with_accepted[-1].review_tier == 5
