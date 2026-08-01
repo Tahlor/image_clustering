@@ -10,6 +10,12 @@ import numpy as np
 from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.models import ImageFeatures, Matrix3x3, Registration
 
+_AFFINE_MODELS = {"affine", "ecc_euclidean"}
+
+
+def _is_affine_model(model: str) -> bool:
+    return model in _AFFINE_MODELS
+
 
 def _polygon_area(points: np.ndarray) -> float:
     x = points[:, 0]
@@ -29,7 +35,7 @@ def _transform_is_plausible(
     )
     transformed = (
         cv2.transform(corners, matrix)[0]
-        if model == "affine"
+        if _is_affine_model(model)
         else cv2.perspectiveTransform(corners, matrix)[0]
     )
     if not np.isfinite(transformed).all():
@@ -98,7 +104,7 @@ def _evaluate_candidate(
 
     predicted = (
         cv2.transform(current_points[None], matrix)[0]
-        if model == "affine"
+        if _is_affine_model(model)
         else cv2.perspectiveTransform(current_points[None], matrix)[0]
     )
     errors = np.linalg.norm(predicted - previous_points, axis=1)
@@ -118,7 +124,200 @@ def _evaluate_candidate(
         occupied_grid_cells=len(cells),
         x_span=x_span,
         y_span=y_span,
+        alignment_score=inlier_ratio,
     )
+
+
+def _center_on_canvas(
+    image: np.ndarray,
+    canvas_shape: tuple[int, int],
+) -> tuple[np.ndarray, tuple[int, int]]:
+    height, width = canvas_shape
+    border = np.concatenate([image[0], image[-1], image[:, 0], image[:, -1]])
+    fill = int(np.median(border))
+    canvas = np.full((height, width), fill, dtype=np.uint8)
+    offset_x = (width - image.shape[1]) // 2
+    offset_y = (height - image.shape[0]) // 2
+    canvas[
+        offset_y : offset_y + image.shape[0],
+        offset_x : offset_x + image.shape[1],
+    ] = image
+    return canvas, (offset_x, offset_y)
+
+
+def _ecc_preprocess(image: np.ndarray) -> np.ndarray:
+    values = image.astype(np.float32) / 255.0
+    sigma = max(5.0, min(image.shape) * 0.03)
+    background = cv2.GaussianBlur(values, (0, 0), sigmaX=sigma)
+    normalized = cv2.GaussianBlur(values - background, (5, 5), 0)
+    normalized -= float(normalized.mean())
+    normalized /= max(float(normalized.std()), 1e-6)
+    return normalized.astype(np.float32)
+
+
+def _small_motion_ecc_registration(
+    previous: ImageFeatures,
+    current: ImageFeatures,
+    config: ClusterConfig,
+    initial_current_to_previous: np.ndarray | None = None,
+) -> Registration:
+    """Try a constrained same-orientation fallback for heavily occluded captures."""
+    if not config.ecc_fallback_enabled:
+        return Registration(accepted=False, reason="ECC fallback disabled")
+
+    previous_aspect = previous.gray.shape[1] / max(previous.gray.shape[0], 1)
+    current_aspect = current.gray.shape[1] / max(current.gray.shape[0], 1)
+    aspect_ratio = previous_aspect / max(current_aspect, 1e-6)
+    if not 0.85 <= aspect_ratio <= 1.18:
+        return Registration(
+            accepted=False,
+            fallback_used=True,
+            reason="ECC fallback rejected incompatible image aspect ratios",
+        )
+
+    canvas_shape = (
+        max(previous.gray.shape[0], current.gray.shape[0]),
+        max(previous.gray.shape[1], current.gray.shape[1]),
+    )
+    previous_canvas, previous_offset = _center_on_canvas(
+        previous.gray,
+        canvas_shape,
+    )
+    current_canvas, current_offset = _center_on_canvas(
+        current.gray,
+        canvas_shape,
+    )
+    template = _ecc_preprocess(previous_canvas)
+    input_image = _ecc_preprocess(current_canvas)
+
+    current_to_canvas = np.array(
+        [
+            [1.0, 0.0, current_offset[0]],
+            [0.0, 1.0, current_offset[1]],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    previous_to_canvas = np.array(
+        [
+            [1.0, 0.0, previous_offset[0]],
+            [0.0, 1.0, previous_offset[1]],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    warp: np.ndarray
+    if initial_current_to_previous is not None:
+        initial = (
+            np.vstack(
+                [initial_current_to_previous[:2], np.array([0.0, 0.0, 1.0])]
+            )
+            if initial_current_to_previous.shape == (2, 3)
+            else initial_current_to_previous.copy()
+        )
+        current_to_previous_canvas = (
+            previous_to_canvas @ initial @ np.linalg.inv(current_to_canvas)
+        )
+        warp = cv2.invertAffineTransform(
+            current_to_previous_canvas[:2].astype(np.float32)
+        )
+    else:
+        window = cv2.createHanningWindow(
+            (canvas_shape[1], canvas_shape[0]),
+            cv2.CV_32F,
+        )
+        try:
+            (shift_x, shift_y), phase_response = cv2.phaseCorrelate(
+                template,
+                input_image,
+                window,
+            )
+            if phase_response < 0.12:
+                shift_x = shift_y = 0.0
+        except cv2.error:
+            shift_x = shift_y = 0.0
+        warp = np.array(
+            [[1.0, 0.0, shift_x], [0.0, 1.0, shift_y]],
+            dtype=np.float32,
+        )
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+        config.ecc_max_iterations,
+        config.ecc_epsilon,
+    )
+    try:
+        correlation, template_to_current = cv2.findTransformECC(
+            template,
+            input_image,
+            warp,
+            cv2.MOTION_EUCLIDEAN,
+            criteria,
+            None,
+            config.ecc_gaussian_filter_size,
+        )
+    except cv2.error:
+        return Registration(
+            accepted=False,
+            fallback_used=True,
+            reason="small-motion ECC fallback did not converge",
+        )
+
+    current_to_previous_canvas = cv2.invertAffineTransform(template_to_current)
+    canvas_matrix = np.vstack(
+        [current_to_previous_canvas, np.array([0.0, 0.0, 1.0])]
+    )
+    source_matrix = np.linalg.inv(previous_to_canvas) @ canvas_matrix @ current_to_canvas
+    affine = source_matrix[:2].astype(np.float64)
+
+    angle = math.degrees(math.atan2(float(affine[1, 0]), float(affine[0, 0])))
+    translation_x = abs(float(affine[0, 2])) / max(previous.gray.shape[1], 1)
+    translation_y = abs(float(affine[1, 2])) / max(previous.gray.shape[0], 1)
+    if (
+        correlation < config.ecc_min_correlation
+        or abs(angle) > config.ecc_max_rotation_degrees
+        or translation_x > config.ecc_max_translation_fraction
+        or translation_y > config.ecc_max_translation_fraction
+        or not _transform_is_plausible(
+            matrix=affine,
+            model="ecc_euclidean",
+            current_shape=current.gray.shape,
+            previous_shape=previous.gray.shape,
+        )
+    ):
+        return Registration(
+            accepted=False,
+            alignment_score=float(correlation),
+            fallback_used=True,
+            reason="small-motion ECC fallback failed correlation or transform bounds",
+        )
+
+    return Registration(
+        accepted=True,
+        model="ecc_euclidean",
+        matrix=affine,
+        inlier_ratio=float(correlation),
+        alignment_score=float(correlation),
+        occupied_grid_cells=16,
+        x_span=1.0,
+        y_span=1.0,
+        fallback_used=True,
+        reason="small-motion ECC fallback",
+    )
+
+
+def _fallback_with_match_count(
+    previous: ImageFeatures,
+    current: ImageFeatures,
+    config: ClusterConfig,
+    good_match_count: int,
+    initial_current_to_previous: np.ndarray | None = None,
+) -> Registration:
+    fallback = _small_motion_ecc_registration(
+        previous=previous,
+        current=current,
+        config=config,
+        initial_current_to_previous=initial_current_to_previous,
+    )
+    fallback.good_match_count = good_match_count
+    return fallback
 
 
 def register_pair(
@@ -128,7 +327,10 @@ def register_pair(
 ) -> Registration:
     """Register `current` into `previous` working-image coordinates."""
     if len(previous.descriptors) == 0 or len(current.descriptors) == 0:
-        return Registration(accepted=False, reason="missing descriptors")
+        fallback = _fallback_with_match_count(previous, current, config, 0)
+        if not fallback.accepted and fallback.reason is None:
+            fallback.reason = "missing descriptors and ECC fallback failed"
+        return fallback
     matcher = cv2.BFMatcher(cv2.NORM_L2)
     raw_matches = matcher.knnMatch(current.descriptors, previous.descriptors, k=2)
     matches = [
@@ -137,18 +339,31 @@ def register_pair(
         if len(pair) == 2
         and pair[0].distance < config.ratio_test * pair[1].distance
     ]
-    if len(matches) < config.min_inliers:
-        return Registration(
-            accepted=False,
-            good_match_count=len(matches),
-            reason="insufficient descriptor matches",
-        )
     current_points = np.float32(
         [current.keypoints_xy[match.queryIdx] for match in matches]
     )
     previous_points = np.float32(
         [previous.keypoints_xy[match.trainIdx] for match in matches]
     )
+    loose_affine = None
+    if len(matches) >= 4:
+        loose_affine, _ = cv2.estimateAffinePartial2D(
+            current_points,
+            previous_points,
+            method=cv2.RANSAC,
+            ransacReprojThreshold=config.ransac_reprojection_px * 2.0,
+            maxIters=1000,
+            confidence=0.99,
+            refineIters=5,
+        )
+    if len(matches) < config.min_inliers:
+        return _fallback_with_match_count(
+            previous,
+            current,
+            config,
+            len(matches),
+            loose_affine,
+        )
 
     affine, affine_mask = cv2.estimateAffine2D(
         current_points,
@@ -202,10 +417,12 @@ def register_pair(
             candidates.append(homography_result)
 
     if not candidates:
-        return Registration(
-            accepted=False,
-            good_match_count=len(matches),
-            reason="registration failed support, coverage, or plausibility checks",
+        return _fallback_with_match_count(
+            previous,
+            current,
+            config,
+            len(matches),
+            affine if affine is not None else loose_affine,
         )
     return max(
         candidates,
@@ -227,29 +444,33 @@ def warp_current(
         raise ValueError("Cannot warp a rejected registration")
     height, width = previous_shape
     source_mask = np.full(current_gray.shape, 255, dtype=np.uint8)
-    if registration.model == "affine":
+    if _is_affine_model(registration.model):
         aligned = cv2.warpAffine(
             current_gray,
             registration.matrix[:2],
             (width, height),
+            borderValue=255,
         )
         valid = cv2.warpAffine(
             source_mask,
             registration.matrix[:2],
             (width, height),
             flags=cv2.INTER_NEAREST,
+            borderValue=0,
         )
     else:
         aligned = cv2.warpPerspective(
             current_gray,
             registration.matrix,
             (width, height),
+            borderValue=255,
         )
         valid = cv2.warpPerspective(
             source_mask,
             registration.matrix,
             (width, height),
             flags=cv2.INTER_NEAREST,
+            borderValue=0,
         )
     return aligned, valid
 
@@ -266,7 +487,7 @@ def source_pixel_transform(
     """
     if registration.matrix is None or registration.model is None:
         raise ValueError("Cannot convert a rejected registration")
-    if registration.model == "affine":
+    if _is_affine_model(registration.model):
         working_matrix = np.vstack(
             [registration.matrix[:2], np.array([0.0, 0.0, 1.0])]
         )
