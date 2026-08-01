@@ -5,10 +5,12 @@ from image_clustering.clustering import (
     ClusteringResult,
     ImageCluster,
     ImageItem,
+    OcclusionReviewCandidate,
     PairComparison,
     cluster_directory,
     cluster_images,
     load_result,
+    rank_occlusion_candidates,
     write_result,
 )
 from image_clustering.cropping import (
@@ -26,6 +28,7 @@ __all__ = [
     "CropConfig",
     "ImageCluster",
     "ImageItem",
+    "OcclusionReviewCandidate",
     "PairComparison",
     "cluster_directory",
     "cluster_images",
@@ -33,5 +36,6 @@ __all__ = [
     "crop_directory",
     "load_crop_config",
     "load_result",
+    "rank_occlusion_candidates",
     "write_result",
 ]
