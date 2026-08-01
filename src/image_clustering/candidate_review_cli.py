@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 from image_clustering.clustering.candidate_review import rank_occlusion_candidates
+from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.serialization import load_result
 
 
@@ -35,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--clustering_json", required=True, type=Path)
     parser.add_argument("--output_dir", required=True, type=Path)
+    parser.add_argument("--config", type=Path)
     parser.add_argument("--include_accepted", action="store_true")
     parser.add_argument("--include_unflagged", action="store_true")
     return parser
@@ -43,8 +45,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     result = load_result(args.clustering_json)
+    config = ClusterConfig.from_json(args.config)
     candidates = rank_occlusion_candidates(
         result,
+        config=config,
         include_accepted=args.include_accepted,
         include_unflagged=args.include_unflagged,
     )
@@ -61,8 +65,14 @@ def main() -> None:
         "count_by_review_tier": {
             str(key): value for key, value in sorted(tiers.items())
         },
+        "acceptance_conflict_count": sum(
+            candidate.acceptance_conflict for candidate in candidates
+        ),
         "hard_contradiction_count": sum(
             candidate.hard_contradiction for candidate in candidates
+        ),
+        "raw_hard_contradiction_count": sum(
+            candidate.raw_hard_contradiction for candidate in candidates
         ),
         "common_neighbor_support_count": sum(
             bool(candidate.common_accepted_neighbors) for candidate in candidates
