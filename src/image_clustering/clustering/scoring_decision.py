@@ -9,6 +9,16 @@ from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
 
 
+def _registration_support(
+    registration: Registration,
+    feature_overlap_threshold: float,
+    config: ClusterConfig,
+) -> bool:
+    if registration.fallback_used:
+        return registration.alignment_score >= config.ecc_min_correlation
+    return registration.feature_overlap >= feature_overlap_threshold
+
+
 def _near_duplicate(
     registration: Registration,
     change: dict[str, float],
@@ -16,7 +26,11 @@ def _near_duplicate(
     config: ClusterConfig,
 ) -> bool:
     return (
-        registration.feature_overlap >= config.duplicate_min_feature_overlap
+        _registration_support(
+            registration,
+            config.duplicate_min_feature_overlap,
+            config,
+        )
         and change["changed_fraction"] <= config.duplicate_max_changed_fraction
         and content.unmatched_ink_fraction
         <= config.duplicate_max_unmatched_ink_fraction
@@ -31,11 +45,7 @@ def _looks_like_different_filled_record(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> bool:
-    """Detect page-wide two-sided ink replacement on a preserved form.
-
-    This is the characteristic hard negative where the printed form aligns but
-    names, dates, signatures, or typewritten values belong to another record.
-    """
+    """Detect page-wide two-sided ink replacement on a preserved form."""
     return (
         content.unmatched_ink_union_fraction
         >= config.occlusion_different_record_min_unmatched_ink_union_fraction
@@ -53,7 +63,11 @@ def _physical_occlusion(
     config: ClusterConfig,
 ) -> bool:
     """Return whether a large contiguous physical overlay explains the pair."""
-    if registration.feature_overlap < config.occlusion_min_feature_overlap:
+    if not _registration_support(
+        registration,
+        config.occlusion_min_feature_overlap,
+        config,
+    ):
         return False
     if not 1 <= content.occlusion_candidate_count <= 2:
         return False
@@ -70,10 +84,6 @@ def _physical_occlusion(
         >= config.occlusion_extreme_min_material_median
     )
 
-    # Normalize actual connected support by page and candidate count. The
-    # candidate bounding rectangle is deliberately not used: sparse handwriting
-    # distributed around a form can have a huge bbox while occupying little of
-    # the page.
     page_support_fraction = (
         content.occlusion_area_fraction
         * content.page_count
@@ -92,10 +102,6 @@ def _physical_occlusion(
     ):
         return False
 
-    # The union- and tile-normalized exterior checks below are meaningful even
-    # when a genuine overlay covers almost the whole page. The raw exterior
-    # fraction is intentionally not a hard gate: it is undefined (reported as
-    # 1.0) when no exterior pixels remain.
     if extreme_change:
         maximum_outside_union = (
             config.occlusion_extreme_max_outside_unmatched_ink_union_fraction
@@ -234,8 +240,12 @@ def _decision(
             "physical_occlusion",
             "large contiguous physical occlusion with near-exact outside agreement",
         )
-    if registration.feature_overlap < config.occlusion_min_feature_overlap:
-        return False, None, "too little document-specific exact feature support"
+    if not _registration_support(
+        registration,
+        config.occlusion_min_feature_overlap,
+        config,
+    ):
+        return False, None, "too little document-specific registration support"
     if content.ink_mismatch_tiles_fraction >= 0.20:
         return False, None, "distributed coherent ink disagreement"
     if content.occlusion_candidate_count == 0:
@@ -272,7 +282,12 @@ def _confidence(
     registration: Registration,
     content: ContentMetrics,
 ) -> float:
-    support = float(np.clip((registration.feature_overlap - 0.06) / 0.24, 0, 1))
+    if registration.fallback_used:
+        support = float(
+            np.clip((registration.alignment_score - 0.30) / 0.50, 0, 1)
+        )
+    else:
+        support = float(np.clip((registration.feature_overlap - 0.06) / 0.24, 0, 1))
     if branch == "near_duplicate":
         ink = float(np.clip(1.0 - content.unmatched_ink_union_fraction / 0.02, 0, 1))
         score = 0.45 * support + 0.55 * ink

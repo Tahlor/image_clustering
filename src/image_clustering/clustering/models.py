@@ -48,7 +48,7 @@ class ImageItem:
 class PairComparison:
     """Decision and diagnostics for one nearby image pair.
 
-    `transform`, when present, is a source-pixel 3×3 transform mapping points
+    `transform`, when present, is a source-pixel 3x3 transform mapping points
     in `second_image_id` into the coordinate system of `first_image_id`.
     """
 
@@ -66,6 +66,8 @@ class PairComparison:
     inlier_ratio: float = 0.0
     feature_overlap: float = 0.0
     median_reprojection_error: float = 0.0
+    registration_fallback_used: bool = False
+    registration_alignment_score: float = 0.0
     valid_fraction: float = 0.0
     changed_fraction: float = 1.0
     stable_fraction: float = 0.0
@@ -92,6 +94,14 @@ class PairComparison:
     page_count: int = 1
     hard_contradiction: bool = False
     branch: str | None = None
+    probability_model_version: str | None = None
+    same_document_probability: float = 0.0
+    occluded_given_same_probability: float = 0.0
+    same_clean_probability: float = 0.0
+    same_occluded_probability: float = 0.0
+    different_document_probability: float = 1.0
+    occlusion_candidate_flag: bool = False
+    automatic_link_eligible: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the comparison to a JSON-serializable dictionary."""
@@ -124,7 +134,7 @@ class ImageCluster:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> ImageCluster:
-        """Construct a cluster from serialized data."""
+        """Construct an image cluster from serialized data."""
         return cls(
             cluster_id=value["cluster_id"],
             sequence_id=value["sequence_id"],
@@ -256,4 +266,6 @@ class Registration:
     occupied_grid_cells: int = 0
     x_span: float = 0.0
     y_span: float = 0.0
+    alignment_score: float = 0.0
+    fallback_used: bool = False
     reason: str | None = None
