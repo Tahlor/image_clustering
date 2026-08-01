@@ -121,14 +121,14 @@ def _tier(
 ) -> tuple[int, str]:
     if acceptance_conflict:
         return 0, "accepted edge conflicts with raw contradiction evidence"
+    if comparison.same_document:
+        return 5, "deterministically accepted without a contradiction conflict"
     if comparison.hard_contradiction:
         return 4, "hard contradiction; expert review only"
     if common_neighbors:
         return 1, "common accepted neighbor supports a sequence bridge"
     if same_component:
         return 2, "already connected transitively by conservative edges"
-    if comparison.same_document:
-        return 5, "deterministically accepted without a contradiction conflict"
     return 3, "high-scoring rejected pair without graph support"
 
 
