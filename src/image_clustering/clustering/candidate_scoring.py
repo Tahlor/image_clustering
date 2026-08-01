@@ -122,7 +122,10 @@ def _linear_probability(
     if len(coefficients) != len(values):
         raise ValueError("Probability feature vector has the wrong length")
     terms = zip(coefficients, values, strict=True)
-    return _sigmoid(intercept + sum(coefficient * value for coefficient, value in terms))
+    linear_value = sum(
+        coefficient * value for coefficient, value in terms
+    )
+    return _sigmoid(intercept + linear_value)
 
 
 def _feature_values(
