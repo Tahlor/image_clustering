@@ -264,7 +264,11 @@ def _small_motion_ecc_registration(
     canvas_matrix = np.vstack(
         [current_to_previous_canvas, np.array([0.0, 0.0, 1.0])]
     )
-    source_matrix = np.linalg.inv(previous_to_canvas) @ canvas_matrix @ current_to_canvas
+    source_matrix = (
+        np.linalg.inv(previous_to_canvas)
+        @ canvas_matrix
+        @ current_to_canvas
+    )
     affine = source_matrix[:2].astype(np.float64)
 
     angle = math.degrees(math.atan2(float(affine[1, 0]), float(affine[0, 0])))
