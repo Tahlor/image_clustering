@@ -1,15 +1,16 @@
 name: Apply bounded ECC branch patch
 
 on:
-  push:
-    branches: [agent/automatic-link-safety]
+  pull_request_target:
+    branches: [master]
+    types: [synchronize]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ github.actor != 'github-actions[bot]' }}
+    if: ${{ github.head_ref == 'agent/automatic-link-safety' && github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
