@@ -25,3 +25,133 @@ jobs:
           name: ruff-${{ matrix.python-version }}
           path: ruff.txt
       - run: python -m pytest -q
+
+  fetch-quickscores:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch live Provo QuickScores schedules
+        shell: bash
+        run: |
+          python -m pip install --quiet requests beautifulsoup4 lxml
+          python - <<'PY'
+          import json, re, time
+          from urllib.parse import urljoin, urlparse, parse_qs
+          import requests
+          from bs4 import BeautifulSoup
+
+          session=requests.Session()
+          session.headers.update({
+              'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/126 Safari/537.36',
+              'Cache-Control':'no-cache',
+              'Pragma':'no-cache',
+          })
+          base='https://www.quickscores.com'
+          def get(url):
+              sep='&' if '?' in url else '?'
+              r=session.get(url+sep+'_cb='+str(time.time_ns()),timeout=60)
+              print('FETCH',r.status_code,len(r.content),r.url)
+              r.raise_for_status()
+              return r.text
+          def parse(url):
+              html=get(url)
+              return html,BeautifulSoup(html,'lxml')
+          def links(sp,url):
+              return [
+                  {'text':' '.join(a.get_text(' ',strip=True).split()),'href':urljoin(url,a['href'])}
+                  for a in sp.find_all('a',href=True)
+              ]
+          def text(sp):
+              return '\n'.join(x.strip() for x in sp.get_text('\n').splitlines() if x.strip())
+
+          root=base+'/Orgs/Schedules.php?OrgDir=provo'
+          root_html,root_soup=parse(root)
+          schedule_links=[x for x in links(root_soup,root) if 'ResultsDisplay.php' in x['href']]
+          targets=[
+              {'player':'Isak','terms':['3rd','4th','Boys'],'team':'DC United'},
+              {'player':'Vera','terms':['5th','6th','Girls'],'team':'Lucky Charms'},
+              {'player':'Levi','terms':['Pre','K','East'],'team':'Hornets'},
+          ]
+          results=[]
+          for t in targets:
+              candidates=[]
+              for x in schedule_links:
+                  normalized=x['text'].replace('-',' ').replace('–',' ').replace('—',' ')
+                  if all(term.lower() in normalized.lower() for term in t['terms']):
+                      candidates.append(x)
+              rec={**t,'division_candidates':candidates}
+              if not candidates:
+                  results.append(rec)
+                  continue
+              div=candidates[0]
+              rec['division']=div
+              div_html,div_soup=parse(div['href'])
+              rec['division_text']=text(div_soup)
+              div_links=links(div_soup,div['href'])
+              rec['division_links']=div_links
+              league=parse_qs(urlparse(div['href']).query).get('LeagueID',[None])[0]
+              rec['league_id']=league
+              team_links=[x for x in div_links if t['team'].lower() in x['text'].lower()]
+              rec['team_links']=team_links
+              team_id=None
+              for x in team_links:
+                  q=parse_qs(urlparse(x['href']).query)
+                  if q.get('TeamID'):
+                      team_id=q['TeamID'][0]
+                      break
+              if not team_id:
+                  node=div_soup.find(string=lambda z: z and t['team'].lower() in z.lower())
+                  p=node.parent if node else None
+                  for _ in range(12):
+                      if p is None:
+                          break
+                      m=re.search(r'TeamID(?:=|%3D|[^0-9]{1,60})([0-9]{5,})',str(p),re.I)
+                      if m:
+                          team_id=m.group(1)
+                          break
+                      p=p.parent
+              rec['team_id']=team_id
+              rec['pages']=[]
+              if league and team_id:
+                  for u in [
+                      f'{base}/Orgs/PrintSchedule.php?OrgDir=provo&LeagueID={league}&TeamID={team_id}',
+                      f'{base}/Orgs/ResultsDisplay.php?OrgDir=provo&LeagueID={league}&TeamID={team_id}',
+                      f'{base}/Orgs/DownloadSchedule.php?OrgDir=provo&LeagueID={league}&TeamID={team_id}',
+                  ]:
+                      html,sp=parse(u)
+                      tables=[]
+                      for table in sp.find_all('table'):
+                          rows=[]
+                          for tr in table.find_all('tr'):
+                              row=[' '.join(c.get_text(' ',strip=True).split()) for c in tr.find_all(['th','td'])]
+                              if any(row):
+                                  rows.append(row)
+                          if rows:
+                              tables.append(rows)
+                      rec['pages'].append({
+                          'url':u,
+                          'text':text(sp),
+                          'tables':tables,
+                          'links':links(sp,u),
+                          'html':html,
+                      })
+              results.append(rec)
+          payload={
+              'fetched_at_epoch':time.time(),
+              'root_url':root,
+              'root_html':root_html,
+              'schedule_links':schedule_links,
+              'targets':results,
+          }
+          with open('quickscores-live.json','w',encoding='utf-8') as f:
+              json.dump(payload,f,indent=2)
+          print('TARGET_SUMMARY='+json.dumps([
+              {'player':r['player'],'team':r['team'],'division':r.get('division'),'league_id':r.get('league_id'),'team_id':r.get('team_id')}
+              for r in results
+          ]))
+          PY
+      - name: Upload live result
+        uses: actions/upload-artifact@v4
+        with:
+          name: quickscores-live
+          path: quickscores-live.json
+          retention-days: 1
