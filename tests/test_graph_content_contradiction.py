@@ -79,3 +79,111 @@ def test_rejected_multi_occlusion_pair_does_not_block_valid_bridge() -> None:
     assert [cluster.image_ids for cluster in clusters] == [
         ("a.jpg", "b.jpg", "c.jpg"),
     ]
+
+
+def test_material_occlusion_contradiction_is_bridgeable_by_two_states() -> None:
+    comparisons = [
+        PairComparison(
+            first_image_id="a.jpg",
+            second_image_id="b.jpg",
+            sequence_id=".",
+            index_gap=1,
+            same_document=True,
+            confidence=0.50,
+            reason="physical occlusion",
+            branch="physical_occlusion",
+        ),
+        PairComparison(
+            first_image_id="b.jpg",
+            second_image_id="c.jpg",
+            sequence_id=".",
+            index_gap=1,
+            same_document=True,
+            confidence=0.97,
+            reason="physical occlusion",
+            branch="physical_occlusion",
+        ),
+        PairComparison(
+            first_image_id="a.jpg",
+            second_image_id="c.jpg",
+            sequence_id=".",
+            index_gap=2,
+            same_document=False,
+            confidence=0.20,
+            reason="distributed coherent ink disagreement",
+            registration_model="affine",
+            valid_fraction=0.93,
+            feature_overlap=0.19,
+            unmatched_ink_union_fraction=0.33,
+            ink_mismatch_tiles_fraction=0.54,
+            residual_tiles_changed_fraction=0.12,
+            occlusion_candidate_count=1,
+            occlusion_area_fraction=0.49,
+            occlusion_residual_capture=0.63,
+            occlusion_material_fraction=0.71,
+            occlusion_material_median=0.065,
+            hard_contradiction=True,
+        ),
+    ]
+    clusters = build_clusters(
+        sequence_id=".",
+        image_ids=["a.jpg", "b.jpg", "c.jpg"],
+        comparisons=comparisons,
+    )
+    assert [cluster.image_ids for cluster in clusters] == [
+        ("a.jpg", "b.jpg", "c.jpg"),
+    ]
+
+
+def test_low_material_hard_negative_still_blocks_two_accepted_edges() -> None:
+    comparisons = [
+        PairComparison(
+            first_image_id="a.jpg",
+            second_image_id="b.jpg",
+            sequence_id=".",
+            index_gap=1,
+            same_document=True,
+            confidence=0.50,
+            reason="physical occlusion",
+            branch="physical_occlusion",
+        ),
+        PairComparison(
+            first_image_id="b.jpg",
+            second_image_id="c.jpg",
+            sequence_id=".",
+            index_gap=1,
+            same_document=True,
+            confidence=0.97,
+            reason="physical occlusion",
+            branch="physical_occlusion",
+        ),
+        PairComparison(
+            first_image_id="a.jpg",
+            second_image_id="c.jpg",
+            sequence_id=".",
+            index_gap=2,
+            same_document=False,
+            confidence=0.10,
+            reason="different filled records",
+            registration_model="affine",
+            valid_fraction=0.95,
+            feature_overlap=0.30,
+            unmatched_ink_union_fraction=0.40,
+            ink_mismatch_tiles_fraction=0.60,
+            residual_tiles_changed_fraction=0.30,
+            occlusion_area_fraction=0.50,
+            occlusion_residual_capture=0.70,
+            occlusion_material_fraction=0.10,
+            occlusion_material_median=0.005,
+            hard_contradiction=True,
+        ),
+    ]
+    clusters = build_clusters(
+        sequence_id=".",
+        image_ids=["a.jpg", "b.jpg", "c.jpg"],
+        comparisons=comparisons,
+    )
+    assert [cluster.image_ids for cluster in clusters] == [
+        ("a.jpg",),
+        ("b.jpg", "c.jpg"),
+    ]

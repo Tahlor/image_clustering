@@ -35,6 +35,45 @@ def _is_hard_contradiction(comparison: PairComparison) -> bool:
     )
 
 
+def _is_material_occlusion_contradiction(comparison: PairComparison) -> bool:
+    """Return whether a contradiction could be two non-overlapping sheet states."""
+    return (
+        _is_hard_contradiction(comparison)
+        and comparison.registration_model is not None
+        and comparison.occlusion_area_fraction >= 0.30
+        and comparison.occlusion_residual_capture >= 0.55
+        and comparison.occlusion_material_fraction >= 0.50
+        and comparison.occlusion_material_median >= 0.02
+    )
+
+
+def _has_accepted_occlusion_bridge(
+    first: str,
+    second: str,
+    prospective_members: set[str],
+    lookup: dict[tuple[str, str], PairComparison],
+) -> bool:
+    """Return whether two accepted occlusion edges explain a rejected outer pair."""
+    contradiction = lookup.get(_pair_key(first, second))
+    if contradiction is None or not _is_material_occlusion_contradiction(
+        contradiction
+    ):
+        return False
+    for bridge in prospective_members - {first, second}:
+        first_edge = lookup.get(_pair_key(first, bridge))
+        second_edge = lookup.get(_pair_key(second, bridge))
+        if (
+            first_edge is not None
+            and second_edge is not None
+            and first_edge.same_document
+            and second_edge.same_document
+            and first_edge.branch == "physical_occlusion"
+            and second_edge.branch == "physical_occlusion"
+        ):
+            return True
+    return False
+
+
 def _components(
     image_ids: list[str],
     comparisons: list[PairComparison],
@@ -79,8 +118,15 @@ def _components(
         second_root = find(comparison.second_image_id)
         if first_root == second_root:
             continue
+        prospective_members = members[first_root] | members[second_root]
         contradiction = any(
             _is_hard_contradiction(lookup[key])
+            and not _has_accepted_occlusion_bridge(
+                first_member,
+                second_member,
+                prospective_members,
+                lookup,
+            )
             for first_member in members[first_root]
             for second_member in members[second_root]
             if (key := _pair_key(first_member, second_member)) in lookup
