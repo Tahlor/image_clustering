@@ -133,7 +133,10 @@ def test_pair_cache_skips_repeated_scoring(tmp_path: Path, monkeypatch) -> None:
     assert second == first
 
 
-def test_pair_cache_invalidates_when_source_changes(tmp_path: Path, monkeypatch) -> None:
+def test_pair_cache_invalidates_when_source_changes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     previous = _features(tmp_path / "a.bin", "a", 0)
     current = _features(tmp_path / "b.bin", "b", 1)
     config = ClusterConfig(max_gap=1, workers=1, cache_pairs=True)
