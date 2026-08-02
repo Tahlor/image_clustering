@@ -5,10 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import threading
 from dataclasses import asdict
 from functools import lru_cache
 from pathlib import Path
+
+import cv2
+import numpy as np
 
 from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.models import ImageFeatures, PairComparison
@@ -78,6 +82,11 @@ def pair_cache_key(
     payload = {
         "version": _PAIR_CACHE_VERSION,
         "algorithm": _algorithm_fingerprint(),
+        "runtime": {
+            "python": platform.python_version(),
+            "opencv": cv2.__version__,
+            "numpy": np.__version__,
+        },
         "config": _scoring_config_fingerprint(config),
         "previous": _source_identity(previous),
         "current": _source_identity(current),
