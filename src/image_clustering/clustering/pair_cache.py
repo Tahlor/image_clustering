@@ -105,7 +105,7 @@ def load_pair_comparison(
         if value.get("schema_version") != _PAIR_CACHE_VERSION:
             return None
         return PairComparison.from_dict(value["comparison"])
-    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+    except (KeyError, OSError, TypeError, ValueError):
         path.unlink(missing_ok=True)
         return None
 
