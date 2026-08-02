@@ -43,6 +43,16 @@ def _cache_key(image: ImageItem, config: ClusterConfig) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _legacy_cache_key(image: ImageItem, config: ClusterConfig) -> str:
+    stat = image.path.stat()
+    payload = (
+        f"{image.path}|{stat.st_size}|{stat.st_mtime_ns}|"
+        f"{config.max_working_dimension}|{config.max_features}|"
+        f"{config.sift_contrast_threshold}"
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _atomic_save_cache(
     path: Path,
     *,
@@ -108,6 +118,41 @@ def _load_cache(
     )
 
 
+def _upgrade_legacy_cache(
+    path: Path,
+    *,
+    image: ImageItem,
+    config: ClusterConfig,
+    destination: Path,
+) -> ImageFeatures | None:
+    try:
+        with np.load(path, allow_pickle=False) as cached:
+            keypoints_xy = cached["keypoints_xy"].copy()
+            descriptors = cached["descriptors"].copy()
+    except (EOFError, KeyError, OSError, ValueError):
+        return None
+
+    gray, scale = _read_gray(
+        path=image.path,
+        max_dimension=config.max_working_dimension,
+    )
+    _atomic_save_cache(
+        destination,
+        gray=gray,
+        scale=scale,
+        keypoints_xy=keypoints_xy,
+        descriptors=descriptors,
+        config=config,
+    )
+    return ImageFeatures(
+        image=image,
+        gray=gray,
+        scale=scale,
+        keypoints_xy=keypoints_xy,
+        descriptors=descriptors,
+    )
+
+
 def extract_features(
     image: ImageItem,
     config: ClusterConfig,
@@ -126,6 +171,18 @@ def extract_features(
             )
             if cached is not None:
                 return cached
+        legacy_path = cache_dir / (
+            f"{_legacy_cache_key(image=image, config=config)}.npz"
+        )
+        if legacy_path.exists():
+            upgraded = _upgrade_legacy_cache(
+                legacy_path,
+                image=image,
+                config=config,
+                destination=cache_path,
+            )
+            if upgraded is not None:
+                return upgraded
 
     gray, scale = _read_gray(
         path=image.path,
