@@ -1,23 +1,17 @@
-name: Export current master
+name: Clean temporary export branch
 
 on:
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  cleanup:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Package repository source
-        run: tar --exclude=.git -czf /tmp/image-clustering-master.tar.gz .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: image-clustering-current-master
-          path: /tmp/image-clustering-master.tar.gz
+      - name: Delete temporary export branch
+        run: git push origin --delete agent/export-current-master-artifact || true
