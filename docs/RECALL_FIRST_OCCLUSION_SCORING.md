@@ -113,3 +113,7 @@ present: a bounded small-motion affine seed, at least fifty exact ratio-test mat
 or coarse phase-correlation response of at least 0.12. Exact BF matching remains the
 primary matcher; approximate FLANN matching was tested but introduced an unstable
 false edge and did not improve runtime at this descriptor scale.
+
+The expanded reviewed fixture includes the previously unlabelled
+`i4071657-00203` / `i4071657-00317` hard negative. The guarded policy passes every
+currently evaluable reviewed clustering case while retaining demoted pairs for review.
