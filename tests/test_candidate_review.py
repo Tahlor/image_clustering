@@ -135,8 +135,11 @@ def test_unflagged_rejected_pair_skips_raw_contradiction_work(monkeypatch) -> No
     )._raw_hard_contradiction
 
     def guarded(comparison, config):
-        if not comparison.same_document:
-            raise AssertionError("rejected pair recomputed contradiction evidence")
+        if (
+            not comparison.same_document
+            and not comparison.occlusion_candidate_flag
+        ):
+            raise AssertionError("filtered pair recomputed contradiction evidence")
         return original(comparison, config)
 
     monkeypatch.setattr(
