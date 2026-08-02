@@ -1,0 +1,16 @@
+{
+  "max_gap": 3,
+  "automatic_link_threshold": 0.72,
+  "review_link_threshold": 0.58,
+  "max_conflict_rate": 0.28,
+  "min_extraction_containment": 0.52,
+  "min_identity_similarity": 0.45,
+  "strong_embedding_similarity": 0.93,
+  "strong_cv_same_scene": 0.70,
+  "min_occlusion_asymmetry": 0.12,
+  "min_role_margin": 0.08,
+  "extraction_weight": 0.68,
+  "embedding_weight": 0.18,
+  "cv_weight": 0.14,
+  "conflict_penalty": 0.42
+}
