@@ -89,6 +89,8 @@ crop_manifest = crop_clustering_result(
 
 `PairComparison.transform` is a 3×3 source-pixel transform mapping the second image into the first image.
 
+`cache_dir` stores exact working images, SIFT features, and completed pair comparisons. Warm reruns and interrupted runs reuse those artifacts without changing any result. See [`docs/PERFORMANCE_CACHING.md`](docs/PERFORMANCE_CACHING.md).
+
 ## CLI
 
 Clustering:

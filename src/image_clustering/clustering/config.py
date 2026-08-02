@@ -48,6 +48,12 @@ class ClusterConfig(_ClusterConfig):
     automatic_link_require_same_filename_prefix: bool = True
     automatic_link_allow_full_page_ecc: bool = False
 
+    # Exact runtime caches. Working-image caching avoids source decode on warm runs;
+    # pair caching checkpoints complete comparisons for instant restart/replay.
+    cache_pairs: bool = True
+    cache_working_images: bool = True
+    feature_cache_compressed: bool = True
+
     def __post_init__(self) -> None:
         """Validate base thresholds and recall-first registration settings."""
         super().__post_init__()
