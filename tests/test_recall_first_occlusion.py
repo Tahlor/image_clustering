@@ -249,3 +249,193 @@ def test_small_motion_fallback_rejects_incompatible_orientation() -> None:
 
     assert not registration.accepted
     assert registration.fallback_used
+
+
+def _blank_features(name: str) -> ImageFeatures:
+    return ImageFeatures(
+        image=ImageItem(name, Path(name), "sequence", 0),
+        gray=np.full((128, 96), 240, dtype=np.uint8),
+        scale=1.0,
+        keypoints_xy=np.empty((0, 2), dtype=np.float32),
+        descriptors=np.empty((0, 128), dtype=np.float32),
+    )
+
+
+def test_ecc_fallback_skips_pair_without_any_plausibility_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from image_clustering.clustering import registration as registration_module
+
+    monkeypatch.setattr(
+        registration_module,
+        "_coarse_phase_response",
+        lambda previous, current, config: 0.01,
+    )
+
+    def unexpected_ecc(**kwargs: object) -> Registration:
+        raise AssertionError("full ECC should not run for an implausible pair")
+
+    monkeypatch.setattr(
+        registration_module,
+        "_small_motion_ecc_registration",
+        unexpected_ecc,
+    )
+    result = registration_module._fallback_with_match_count(
+        _blank_features("i1-00001.j2k"),
+        _blank_features("i2-00400.j2k"),
+        ClusterConfig(),
+        good_match_count=4,
+    )
+
+    assert not result.accepted
+    assert not result.fallback_used
+    assert "ECC fallback skipped" in (result.reason or "")
+
+
+def test_ecc_fallback_runs_with_enough_descriptor_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from image_clustering.clustering import registration as registration_module
+
+    monkeypatch.setattr(
+        registration_module,
+        "_coarse_phase_response",
+        lambda previous, current, config: 0.01,
+    )
+    monkeypatch.setattr(
+        registration_module,
+        "_small_motion_ecc_registration",
+        lambda **kwargs: Registration(
+            accepted=True,
+            model="ecc_euclidean",
+            matrix=np.eye(2, 3),
+            fallback_used=True,
+        ),
+    )
+    config = ClusterConfig(ecc_min_descriptor_matches=50)
+    result = registration_module._fallback_with_match_count(
+        _blank_features("i1-00001.j2k"),
+        _blank_features("i1-00002.j2k"),
+        config,
+        good_match_count=50,
+    )
+
+    assert result.accepted
+    assert result.fallback_used
+    assert result.good_match_count == 50
+
+
+def test_distant_filename_match_is_review_only() -> None:
+    from image_clustering.clustering.scoring import _automatic_link_safety_reason
+
+    reason = _automatic_link_safety_reason(
+        previous=_blank_features("i4071657-00203.j2k"),
+        current=_blank_features("i4071657-00317.j2k"),
+        registration=_registration(),
+        content=_content(),
+        branch="physical_occlusion",
+        config=ClusterConfig(),
+    )
+
+    assert reason == (
+        "filename capture positions are too far apart for an automatic edge"
+    )
+
+
+def test_nearby_filename_match_remains_eligible() -> None:
+    from image_clustering.clustering.scoring import _automatic_link_safety_reason
+
+    reason = _automatic_link_safety_reason(
+        previous=_blank_features("i4071662-00471.j2k"),
+        current=_blank_features("i4071662-00473.j2k"),
+        registration=_registration(),
+        content=_content(),
+        branch="physical_occlusion",
+        config=ClusterConfig(),
+    )
+
+    assert reason is None
+
+
+def test_full_page_ecc_match_requires_review() -> None:
+    from image_clustering.clustering.scoring import _automatic_link_safety_reason
+
+    registration = Registration(
+        accepted=True,
+        model="ecc_euclidean",
+        alignment_score=0.90,
+        fallback_used=True,
+    )
+    reason = _automatic_link_safety_reason(
+        previous=_blank_features("i4071662-00112.j2k"),
+        current=_blank_features("i4071662-00113.j2k"),
+        registration=registration,
+        content=_content(full_page_occlusion_count=1),
+        branch="physical_occlusion",
+        config=ClusterConfig(),
+    )
+
+    assert reason == "full-page ECC match requires review"
+
+
+def test_dirty_exterior_needs_stronger_identity_support() -> None:
+    from image_clustering.clustering.scoring import _automatic_link_safety_reason
+
+    weak_registration = Registration(
+        accepted=True,
+        model="affine",
+        feature_overlap=0.08,
+        alignment_score=0.30,
+    )
+    reason = _automatic_link_safety_reason(
+        previous=_blank_features("i4071662-00112.j2k"),
+        current=_blank_features("i4071662-00113.j2k"),
+        registration=weak_registration,
+        content=_content(
+            outside_unmatched_ink_union_fraction=0.15,
+            outside_ink_mismatch_tiles_fraction=0.50,
+        ),
+        branch="physical_occlusion",
+        config=ClusterConfig(),
+    )
+
+    assert reason == "dirty occlusion exterior lacks strong registration support"
+
+
+
+def test_ecc_uses_bounded_working_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from image_clustering.clustering import registration as registration_module
+
+    captured: dict[str, tuple[int, int]] = {}
+
+    def fake_ecc(
+        template: np.ndarray,
+        input_image: np.ndarray,
+        warp: np.ndarray,
+        motion_type: int,
+        criteria: tuple[int, int, float],
+        input_mask: np.ndarray | None,
+        gaussian_filter_size: int,
+    ) -> tuple[float, np.ndarray]:
+        captured["template"] = template.shape
+        captured["input"] = input_image.shape
+        return 0.99, warp
+
+    monkeypatch.setattr(cv2, "findTransformECC", fake_ecc)
+    image = cv2.resize(_document(), (900, 900))
+    config = ClusterConfig(
+        ecc_working_dimension=256,
+        min_inliers=1000,
+        max_features=2500,
+    )
+    result = registration_module._small_motion_ecc_registration(
+        previous=_features(image, "previous.jpg"),
+        current=_features(image, "current.jpg"),
+        config=config,
+    )
+
+    assert result.accepted
+    assert max(captured["template"]) <= 256
+    assert captured["template"] == captured["input"]

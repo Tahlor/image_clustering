@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.models import ImageFeatures, Matrix3x3, Registration
 
 _AFFINE_MODELS = {"affine", "ecc_euclidean"}
+_ECC_LOCK = threading.Lock()
 
 
 def _is_affine_model(model: str) -> bool:
@@ -155,6 +157,81 @@ def _ecc_preprocess(image: np.ndarray) -> np.ndarray:
     return normalized.astype(np.float32)
 
 
+def _bounded_small_motion_seed(
+    matrix: np.ndarray | None,
+    *,
+    current_shape: tuple[int, int],
+    previous_shape: tuple[int, int],
+    config: ClusterConfig,
+) -> bool:
+    """Return whether an affine seed is compatible with production capture motion."""
+    if matrix is None or matrix.shape not in {(2, 3), (3, 3)}:
+        return False
+    affine = matrix[:2]
+    if not np.isfinite(affine).all():
+        return False
+    scale = math.hypot(float(affine[0, 0]), float(affine[1, 0]))
+    angle = math.degrees(math.atan2(float(affine[1, 0]), float(affine[0, 0])))
+    translation_x = abs(float(affine[0, 2])) / max(previous_shape[1], 1)
+    translation_y = abs(float(affine[1, 2])) / max(previous_shape[0], 1)
+    return (
+        0.85 <= scale <= 1.18
+        and abs(angle) <= config.ecc_max_rotation_degrees
+        and translation_x <= config.ecc_max_translation_fraction
+        and translation_y <= config.ecc_max_translation_fraction
+        and _transform_is_plausible(
+            matrix=affine,
+            model="affine",
+            current_shape=current_shape,
+            previous_shape=previous_shape,
+        )
+    )
+
+
+def _coarse_phase_response(
+    previous: ImageFeatures,
+    current: ImageFeatures,
+    config: ClusterConfig,
+) -> float:
+    """Return cheap coarse translation evidence before attempting full ECC."""
+    canvas_shape = (
+        max(previous.gray.shape[0], current.gray.shape[0]),
+        max(previous.gray.shape[1], current.gray.shape[1]),
+    )
+    previous_canvas, _ = _center_on_canvas(previous.gray, canvas_shape)
+    current_canvas, _ = _center_on_canvas(current.gray, canvas_shape)
+    scale = min(
+        1.0,
+        config.ecc_coarse_dimension / max(canvas_shape),
+    )
+    if scale < 1.0:
+        size = (
+            max(32, round(canvas_shape[1] * scale)),
+            max(32, round(canvas_shape[0] * scale)),
+        )
+        previous_canvas = cv2.resize(
+            previous_canvas,
+            size,
+            interpolation=cv2.INTER_AREA,
+        )
+        current_canvas = cv2.resize(
+            current_canvas,
+            size,
+            interpolation=cv2.INTER_AREA,
+        )
+    template = _ecc_preprocess(previous_canvas)
+    input_image = _ecc_preprocess(current_canvas)
+    window = cv2.createHanningWindow(
+        (template.shape[1], template.shape[0]),
+        cv2.CV_32F,
+    )
+    try:
+        _, response = cv2.phaseCorrelate(template, input_image, window)
+    except cv2.error:
+        return 0.0
+    return float(response) if math.isfinite(float(response)) else 0.0
+
+
 def _small_motion_ecc_registration(
     previous: ImageFeatures,
     current: ImageFeatures,
@@ -187,8 +264,35 @@ def _small_motion_ecc_registration(
         current.gray,
         canvas_shape,
     )
-    template = _ecc_preprocess(previous_canvas)
-    input_image = _ecc_preprocess(current_canvas)
+
+    # Full-resolution ECC can spend minutes on repetitive or unrelated forms.
+    # Estimate motion on a bounded canvas, then map it back for full-resolution
+    # content scoring.
+    scale = min(1.0, config.ecc_working_dimension / max(canvas_shape))
+    if scale < 1.0:
+        working_size = (
+            max(64, round(canvas_shape[1] * scale)),
+            max(64, round(canvas_shape[0] * scale)),
+        )
+        previous_working = cv2.resize(
+            previous_canvas,
+            working_size,
+            interpolation=cv2.INTER_AREA,
+        )
+        current_working = cv2.resize(
+            current_canvas,
+            working_size,
+            interpolation=cv2.INTER_AREA,
+        )
+    else:
+        previous_working = previous_canvas
+        current_working = current_canvas
+    scale_x = previous_working.shape[1] / canvas_shape[1]
+    scale_y = previous_working.shape[0] / canvas_shape[0]
+    canvas_to_working = np.diag([scale_x, scale_y, 1.0])
+
+    template = _ecc_preprocess(previous_working)
+    input_image = _ecc_preprocess(current_working)
 
     current_to_canvas = np.array(
         [
@@ -204,6 +308,8 @@ def _small_motion_ecc_registration(
             [0.0, 0.0, 1.0],
         ]
     )
+    current_to_working = canvas_to_working @ current_to_canvas
+    previous_to_working = canvas_to_working @ previous_to_canvas
     warp: np.ndarray
     if initial_current_to_previous is not None:
         initial = (
@@ -213,15 +319,15 @@ def _small_motion_ecc_registration(
             if initial_current_to_previous.shape == (2, 3)
             else initial_current_to_previous.copy()
         )
-        current_to_previous_canvas = (
-            previous_to_canvas @ initial @ np.linalg.inv(current_to_canvas)
+        current_to_previous_working = (
+            previous_to_working @ initial @ np.linalg.inv(current_to_working)
         )
         warp = cv2.invertAffineTransform(
-            current_to_previous_canvas[:2].astype(np.float32)
+            current_to_previous_working[:2].astype(np.float32)
         )
     else:
         window = cv2.createHanningWindow(
-            (canvas_shape[1], canvas_shape[0]),
+            (template.shape[1], template.shape[0]),
             cv2.CV_32F,
         )
         try:
@@ -230,7 +336,7 @@ def _small_motion_ecc_registration(
                 input_image,
                 window,
             )
-            if phase_response < 0.12:
+            if phase_response < config.ecc_min_phase_correlation:
                 shift_x = shift_y = 0.0
         except cv2.error:
             shift_x = shift_y = 0.0
@@ -244,15 +350,18 @@ def _small_motion_ecc_registration(
         config.ecc_epsilon,
     )
     try:
-        correlation, template_to_current = cv2.findTransformECC(
-            template,
-            input_image,
-            warp,
-            cv2.MOTION_EUCLIDEAN,
-            criteria,
-            None,
-            config.ecc_gaussian_filter_size,
-        )
+        # OpenCV ECC is not reliably efficient when several calls run at once.
+        # Keep the ordinary pair pipeline parallel and serialize this rare step.
+        with _ECC_LOCK:
+            correlation, template_to_current = cv2.findTransformECC(
+                template,
+                input_image,
+                warp,
+                cv2.MOTION_EUCLIDEAN,
+                criteria,
+                None,
+                config.ecc_gaussian_filter_size,
+            )
     except cv2.error:
         return Registration(
             accepted=False,
@@ -260,14 +369,16 @@ def _small_motion_ecc_registration(
             reason="small-motion ECC fallback did not converge",
         )
 
-    current_to_previous_canvas = cv2.invertAffineTransform(template_to_current)
-    canvas_matrix = np.vstack(
-        [current_to_previous_canvas, np.array([0.0, 0.0, 1.0])]
+    current_to_previous_working = cv2.invertAffineTransform(
+        template_to_current
+    )
+    working_matrix = np.vstack(
+        [current_to_previous_working, np.array([0.0, 0.0, 1.0])]
     )
     source_matrix = (
-        np.linalg.inv(previous_to_canvas)
-        @ canvas_matrix
-        @ current_to_canvas
+        np.linalg.inv(previous_to_working)
+        @ working_matrix
+        @ current_to_working
     )
     affine = source_matrix[:2].astype(np.float64)
 
@@ -314,13 +425,38 @@ def _fallback_with_match_count(
     good_match_count: int,
     initial_current_to_previous: np.ndarray | None = None,
 ) -> Registration:
+    seed_is_plausible = _bounded_small_motion_seed(
+        initial_current_to_previous,
+        current_shape=current.gray.shape,
+        previous_shape=previous.gray.shape,
+        config=config,
+    )
+    phase_response = _coarse_phase_response(previous, current, config)
+    if (
+        not seed_is_plausible
+        and good_match_count < config.ecc_min_descriptor_matches
+        and phase_response < config.ecc_min_phase_correlation
+    ):
+        return Registration(
+            accepted=False,
+            good_match_count=good_match_count,
+            alignment_score=phase_response,
+            reason=(
+                "ECC fallback skipped: weak descriptor, affine-seed, and coarse "
+                "phase evidence"
+            ),
+        )
     fallback = _small_motion_ecc_registration(
         previous=previous,
         current=current,
         config=config,
-        initial_current_to_previous=initial_current_to_previous,
+        initial_current_to_previous=(
+            initial_current_to_previous if seed_is_plausible else None
+        ),
     )
     fallback.good_match_count = good_match_count
+    if fallback.alignment_score == 0.0 and phase_response > 0.0:
+        fallback.alignment_score = phase_response
     return fallback
 
 

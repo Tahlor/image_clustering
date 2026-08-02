@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import cv2
 import numpy as np
 
 from image_clustering.clustering.candidate_scoring import pair_probabilities
 from image_clustering.clustering.config import ClusterConfig
-from image_clustering.clustering.content import analyze_content, local_dissimilarity
-from image_clustering.clustering.models import ImageFeatures, PairComparison
+from image_clustering.clustering.content import (
+    ContentMetrics,
+    analyze_content,
+    local_dissimilarity,
+)
+from image_clustering.clustering.models import (
+    ImageFeatures,
+    PairComparison,
+    Registration,
+)
 from image_clustering.clustering.registration import (
     register_pair,
     source_pixel_transform,
@@ -19,6 +30,71 @@ from image_clustering.clustering.scoring_decision import (
     _decision,
     _hard_contradiction,
 )
+
+_FILENAME_SUFFIX = re.compile(r"^(?P<prefix>.*?)(?P<number>\d+)$")
+
+
+def _filename_sequence_position(path: Path) -> tuple[str, int] | None:
+    """Return the stable nonnumeric prefix and terminal numeric capture index."""
+    match = _FILENAME_SUFFIX.match(path.stem)
+    if match is None or not match.group("prefix"):
+        return None
+    return match.group("prefix"), int(match.group("number"))
+
+
+def _automatic_link_safety_reason(
+    previous: ImageFeatures,
+    current: ImageFeatures,
+    registration: Registration,
+    content: ContentMetrics,
+    branch: str | None,
+    config: ClusterConfig,
+) -> str | None:
+    """Return why a deterministic match must remain review-only.
+
+    These checks do not alter the continuous candidate score. They only prevent weak
+    or operationally implausible matches from becoming graph edges.
+    """
+    previous_position = _filename_sequence_position(previous.image.path)
+    current_position = _filename_sequence_position(current.image.path)
+    if previous_position is not None and current_position is not None:
+        previous_prefix, previous_number = previous_position
+        current_prefix, current_number = current_position
+        if (
+            config.automatic_link_require_same_filename_prefix
+            and previous_prefix != current_prefix
+        ):
+            return "filename sequence prefixes differ"
+        if (
+            previous_prefix == current_prefix
+            and abs(previous_number - current_number)
+            > config.automatic_link_max_numeric_filename_gap
+        ):
+            return "filename capture positions are too far apart for an automatic edge"
+
+    if (
+        not config.automatic_link_allow_full_page_ecc
+        and registration.fallback_used
+        and content.full_page_occlusion_count > 0
+    ):
+        return "full-page ECC match requires review"
+
+    dirty_exterior = (
+        branch == "physical_occlusion"
+        and content.outside_unmatched_ink_union_fraction
+        >= config.occlusion_dirty_exterior_min_unmatched_ink_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        >= config.occlusion_dirty_exterior_min_ink_mismatch_tiles_fraction
+    )
+    strong_identity_support = (
+        registration.feature_overlap
+        >= config.occlusion_dirty_exterior_min_feature_overlap
+        or registration.alignment_score
+        >= config.occlusion_dirty_exterior_min_alignment_score
+    )
+    if dirty_exterior and not strong_identity_support:
+        return "dirty occlusion exterior lacks strong registration support"
+    return None
 
 
 def _normalize_brightness(
@@ -142,14 +218,34 @@ def score_pair(
         valid_mask=valid_mask,
         config=config,
     )
-    accepted, branch, reason = _decision(
+    deterministic_accepted, branch, deterministic_reason = _decision(
         registration=registration,
         change=change,
         content=content,
         config=config,
     )
+    safety_reason = (
+        _automatic_link_safety_reason(
+            previous=previous,
+            current=current,
+            registration=registration,
+            content=content,
+            branch=branch,
+            config=config,
+        )
+        if deterministic_accepted
+        else None
+    )
+    accepted = deterministic_accepted and safety_reason is None
+    reason = (
+        deterministic_reason
+        if safety_reason is None
+        else f"review-only deterministic match: {safety_reason}"
+    )
+    # A safety demotion should not fabricate a content contradiction. The review
+    # layer separately recomputes raw contradiction evidence for accepted conflicts.
     contradiction = _hard_contradiction(
-        accepted=accepted,
+        accepted=deterministic_accepted,
         content=content,
         config=config,
     )
