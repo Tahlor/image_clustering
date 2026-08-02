@@ -10,6 +10,7 @@ The feature cache stores the exact resized grayscale working image, resize scale
 keypoint coordinates, and descriptors. A warm cache hit therefore does not reopen or
 resize the original source image.
 
+Existing descriptor-only cache entries are upgraded in place without recomputing SIFT.
 The default cache remains compressed to control disk use. Set
 `feature_cache_compressed=false` for a larger but faster local-NVMe cache. The cache key
 includes source path, size, modification time, working dimension, SIFT parameters, and
