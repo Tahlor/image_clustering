@@ -22,6 +22,7 @@ jobs:
           python scripts/apply_bounded_ecc_patch.py
           rm -f scripts/apply_bounded_ecc_patch.py
           rm -f .github/workflows/apply-bounded-ecc.yml
+          rm -f .automatic-link-safety-trigger
           git config user.name "ChatGPT Automation"
           git config user.email "actions@users.noreply.github.com"
           git add -A
