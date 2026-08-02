@@ -27,6 +27,7 @@ class ClusterConfig(_ClusterConfig):
     # bounded small-motion affine seed, enough exact descriptor matches, or coarse
     # phase-correlation evidence. Content scoring remains at full resolution.
     ecc_coarse_dimension: int = 192
+    ecc_working_dimension: int = 384
     ecc_min_phase_correlation: float = 0.12
     ecc_min_descriptor_matches: int = 50
 
@@ -71,6 +72,8 @@ class ClusterConfig(_ClusterConfig):
             raise ValueError("ecc_epsilon must be positive")
         if self.ecc_coarse_dimension < 64:
             raise ValueError("ecc_coarse_dimension must be at least 64")
+        if self.ecc_working_dimension < 128:
+            raise ValueError("ecc_working_dimension must be at least 128")
         if self.ecc_min_descriptor_matches < 0:
             raise ValueError("ecc_min_descriptor_matches cannot be negative")
         if self.automatic_link_max_numeric_filename_gap < 1:

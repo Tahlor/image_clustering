@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import threading
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.models import ImageFeatures, Matrix3x3, Registration
 
 _AFFINE_MODELS = {"affine", "ecc_euclidean"}
+_ECC_LOCK = threading.Lock()
 
 
 def _is_affine_model(model: str) -> bool:
@@ -262,8 +264,35 @@ def _small_motion_ecc_registration(
         current.gray,
         canvas_shape,
     )
-    template = _ecc_preprocess(previous_canvas)
-    input_image = _ecc_preprocess(current_canvas)
+
+    # Full-resolution ECC can spend minutes on repetitive or unrelated forms.
+    # Estimate motion on a bounded canvas, then map it back for full-resolution
+    # content scoring.
+    scale = min(1.0, config.ecc_working_dimension / max(canvas_shape))
+    if scale < 1.0:
+        working_size = (
+            max(64, round(canvas_shape[1] * scale)),
+            max(64, round(canvas_shape[0] * scale)),
+        )
+        previous_working = cv2.resize(
+            previous_canvas,
+            working_size,
+            interpolation=cv2.INTER_AREA,
+        )
+        current_working = cv2.resize(
+            current_canvas,
+            working_size,
+            interpolation=cv2.INTER_AREA,
+        )
+    else:
+        previous_working = previous_canvas
+        current_working = current_canvas
+    scale_x = previous_working.shape[1] / canvas_shape[1]
+    scale_y = previous_working.shape[0] / canvas_shape[0]
+    canvas_to_working = np.diag([scale_x, scale_y, 1.0])
+
+    template = _ecc_preprocess(previous_working)
+    input_image = _ecc_preprocess(current_working)
 
     current_to_canvas = np.array(
         [
@@ -279,6 +308,8 @@ def _small_motion_ecc_registration(
             [0.0, 0.0, 1.0],
         ]
     )
+    current_to_working = canvas_to_working @ current_to_canvas
+    previous_to_working = canvas_to_working @ previous_to_canvas
     warp: np.ndarray
     if initial_current_to_previous is not None:
         initial = (
@@ -288,15 +319,15 @@ def _small_motion_ecc_registration(
             if initial_current_to_previous.shape == (2, 3)
             else initial_current_to_previous.copy()
         )
-        current_to_previous_canvas = (
-            previous_to_canvas @ initial @ np.linalg.inv(current_to_canvas)
+        current_to_previous_working = (
+            previous_to_working @ initial @ np.linalg.inv(current_to_working)
         )
         warp = cv2.invertAffineTransform(
-            current_to_previous_canvas[:2].astype(np.float32)
+            current_to_previous_working[:2].astype(np.float32)
         )
     else:
         window = cv2.createHanningWindow(
-            (canvas_shape[1], canvas_shape[0]),
+            (template.shape[1], template.shape[0]),
             cv2.CV_32F,
         )
         try:
@@ -319,15 +350,18 @@ def _small_motion_ecc_registration(
         config.ecc_epsilon,
     )
     try:
-        correlation, template_to_current = cv2.findTransformECC(
-            template,
-            input_image,
-            warp,
-            cv2.MOTION_EUCLIDEAN,
-            criteria,
-            None,
-            config.ecc_gaussian_filter_size,
-        )
+        # OpenCV ECC is not reliably efficient when several calls run at once.
+        # Keep the ordinary pair pipeline parallel and serialize this rare step.
+        with _ECC_LOCK:
+            correlation, template_to_current = cv2.findTransformECC(
+                template,
+                input_image,
+                warp,
+                cv2.MOTION_EUCLIDEAN,
+                criteria,
+                None,
+                config.ecc_gaussian_filter_size,
+            )
     except cv2.error:
         return Registration(
             accepted=False,
@@ -335,12 +369,16 @@ def _small_motion_ecc_registration(
             reason="small-motion ECC fallback did not converge",
         )
 
-    current_to_previous_canvas = cv2.invertAffineTransform(template_to_current)
-    canvas_matrix = np.vstack(
-        [current_to_previous_canvas, np.array([0.0, 0.0, 1.0])]
+    current_to_previous_working = cv2.invertAffineTransform(
+        template_to_current
+    )
+    working_matrix = np.vstack(
+        [current_to_previous_working, np.array([0.0, 0.0, 1.0])]
     )
     source_matrix = (
-        np.linalg.inv(previous_to_canvas) @ canvas_matrix @ current_to_canvas
+        np.linalg.inv(previous_to_working)
+        @ working_matrix
+        @ current_to_working
     )
     affine = source_matrix[:2].astype(np.float64)
 

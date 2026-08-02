@@ -400,3 +400,42 @@ def test_dirty_exterior_needs_stronger_identity_support() -> None:
     )
 
     assert reason == "dirty occlusion exterior lacks strong registration support"
+
+
+
+def test_ecc_uses_bounded_working_canvas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from image_clustering.clustering import registration as registration_module
+
+    captured: dict[str, tuple[int, int]] = {}
+
+    def fake_ecc(
+        template: np.ndarray,
+        input_image: np.ndarray,
+        warp: np.ndarray,
+        motion_type: int,
+        criteria: tuple[int, int, float],
+        input_mask: np.ndarray | None,
+        gaussian_filter_size: int,
+    ) -> tuple[float, np.ndarray]:
+        captured["template"] = template.shape
+        captured["input"] = input_image.shape
+        return 0.99, warp
+
+    monkeypatch.setattr(cv2, "findTransformECC", fake_ecc)
+    image = cv2.resize(_document(), (900, 900))
+    config = ClusterConfig(
+        ecc_working_dimension=256,
+        min_inliers=1000,
+        max_features=2500,
+    )
+    result = registration_module._small_motion_ecc_registration(
+        previous=_features(image, "previous.jpg"),
+        current=_features(image, "current.jpg"),
+        config=config,
+    )
+
+    assert result.accepted
+    assert max(captured["template"]) <= 256
+    assert captured["template"] == captured["input"]
