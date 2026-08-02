@@ -1,0 +1,17 @@
+name: Cleanup exact performance cache branch
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete merged working branch
+        run: git push origin --delete agent/exact-performance-cache || true
