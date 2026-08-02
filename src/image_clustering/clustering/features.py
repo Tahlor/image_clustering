@@ -33,7 +33,8 @@ def _read_gray(path: Path, max_dimension: int) -> tuple[np.ndarray, float]:
 def _cache_key(image: ImageItem, config: ClusterConfig) -> str:
     stat = image.path.stat()
     payload = (
-        f"v{_FEATURE_CACHE_VERSION}|{image.path.resolve()}|"
+        f"v{_FEATURE_CACHE_VERSION}|opencv={cv2.__version__}|numpy={np.__version__}|"
+        f"{image.path.resolve()}|"
         f"{stat.st_size}|{stat.st_mtime_ns}|"
         f"{config.max_working_dimension}|{config.max_features}|"
         f"{config.sift_contrast_threshold}|"
