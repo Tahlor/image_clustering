@@ -151,20 +151,20 @@ def rank_occlusion_candidates(
     accepted_neighbors = _accepted_neighbors(result)
     candidates: list[OcclusionReviewCandidate] = []
     for comparison in result.comparisons:
-        raw_contradiction = _raw_hard_contradiction(comparison, config)
-        acceptance_conflict = comparison.same_document and raw_contradiction
         if (
-            not include_unflagged
+            not comparison.same_document
+            and not include_unflagged
             and not comparison.occlusion_candidate_flag
-            and not acceptance_conflict
         ):
             continue
-        if (
-            not include_accepted
-            and comparison.same_document
-            and not acceptance_conflict
-        ):
-            continue
+        if comparison.same_document:
+            raw_contradiction = _raw_hard_contradiction(comparison, config)
+            acceptance_conflict = raw_contradiction
+            if not include_accepted and not acceptance_conflict:
+                continue
+        else:
+            raw_contradiction = comparison.hard_contradiction
+            acceptance_conflict = False
         first_cluster = cluster_by_image.get(comparison.first_image_id)
         second_cluster = cluster_by_image.get(comparison.second_image_id)
         same_component = (
