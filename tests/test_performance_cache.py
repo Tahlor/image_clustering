@@ -9,7 +9,7 @@ import numpy as np
 
 from image_clustering.clustering import api
 from image_clustering.clustering.config import ClusterConfig
-from image_clustering.clustering.features import extract_features
+from image_clustering.clustering.features import _legacy_cache_key, extract_features
 from image_clustering.clustering.models import (
     ImageFeatures,
     ImageItem,
@@ -171,3 +171,34 @@ def test_pair_cache_invalidates_when_source_changes(tmp_path: Path, monkeypatch)
     )
 
     assert calls == 2
+
+
+def test_legacy_feature_cache_is_upgraded_without_sift(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    image_path = tmp_path / "image.png"
+    _write_test_image(image_path)
+    item = ImageItem("image.png", image_path, ".", 0)
+    config = ClusterConfig(workers=1)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+
+    legacy_path = cache_dir / f"{_legacy_cache_key(item, config)}.npz"
+    expected_keypoints = np.asarray([[10.0, 20.0]], dtype=np.float32)
+    expected_descriptors = np.ones((1, 128), dtype=np.float32)
+    np.savez_compressed(
+        legacy_path,
+        keypoints_xy=expected_keypoints,
+        descriptors=expected_descriptors,
+    )
+
+    def fail_sift(*_args, **_kwargs):
+        raise AssertionError("legacy cache upgrade recomputed SIFT")
+
+    monkeypatch.setattr(cv2, "SIFT_create", fail_sift)
+    features = extract_features(item, config, cache_dir)
+
+    assert np.array_equal(features.keypoints_xy, expected_keypoints)
+    assert np.array_equal(features.descriptors, expected_descriptors)
+    assert len(list(cache_dir.glob("*.npz"))) == 2
