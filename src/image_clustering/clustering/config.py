@@ -23,9 +23,29 @@ class ClusterConfig(_ClusterConfig):
     ecc_epsilon: float = 0.000001
     ecc_gaussian_filter_size: int = 5
 
+    # Avoid full ECC on obviously unrelated pages. A fallback attempt requires a
+    # bounded small-motion affine seed, enough exact descriptor matches, or coarse
+    # phase-correlation evidence. Content scoring remains at full resolution.
+    ecc_coarse_dimension: int = 192
+    ecc_min_phase_correlation: float = 0.12
+    ecc_min_descriptor_matches: int = 50
+
     # The continuous score is a recall-oriented review signal. It never bypasses
     # deterministic acceptance or hard-contradiction graph safeguards.
     occlusion_candidate_probability_threshold: float = 0.08
+
+    # Extreme material changes may hide most content. When the remaining exterior
+    # is dirty, require stronger identity support before creating an automatic edge.
+    occlusion_dirty_exterior_min_feature_overlap: float = 0.15
+    occlusion_dirty_exterior_min_alignment_score: float = 0.55
+    occlusion_dirty_exterior_min_unmatched_ink_union_fraction: float = 0.10
+    occlusion_dirty_exterior_min_ink_mismatch_tiles_fraction: float = 0.40
+
+    # Automatic graph edges need plausible capture-sequence proximity. Pairs beyond
+    # this filename suffix gap are retained as review candidates, not auto-linked.
+    automatic_link_max_numeric_filename_gap: int = 12
+    automatic_link_require_same_filename_prefix: bool = True
+    automatic_link_allow_full_page_ecc: bool = False
 
     def __post_init__(self) -> None:
         """Validate base thresholds and recall-first registration settings."""
@@ -33,7 +53,12 @@ class ClusterConfig(_ClusterConfig):
         for name in (
             "ecc_min_correlation",
             "ecc_max_translation_fraction",
+            "ecc_min_phase_correlation",
             "occlusion_candidate_probability_threshold",
+            "occlusion_dirty_exterior_min_feature_overlap",
+            "occlusion_dirty_exterior_min_alignment_score",
+            "occlusion_dirty_exterior_min_unmatched_ink_union_fraction",
+            "occlusion_dirty_exterior_min_ink_mismatch_tiles_fraction",
         ):
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
@@ -44,6 +69,14 @@ class ClusterConfig(_ClusterConfig):
             raise ValueError("ecc_max_iterations must be positive")
         if self.ecc_epsilon <= 0:
             raise ValueError("ecc_epsilon must be positive")
+        if self.ecc_coarse_dimension < 64:
+            raise ValueError("ecc_coarse_dimension must be at least 64")
+        if self.ecc_min_descriptor_matches < 0:
+            raise ValueError("ecc_min_descriptor_matches cannot be negative")
+        if self.automatic_link_max_numeric_filename_gap < 1:
+            raise ValueError(
+                "automatic_link_max_numeric_filename_gap must be positive"
+            )
         if (
             self.ecc_gaussian_filter_size < 1
             or self.ecc_gaussian_filter_size % 2 == 0
