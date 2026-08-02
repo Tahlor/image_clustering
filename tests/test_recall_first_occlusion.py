@@ -337,7 +337,9 @@ def test_distant_filename_match_is_review_only() -> None:
         config=ClusterConfig(),
     )
 
-    assert reason == "filename capture positions are too far apart for an automatic edge"
+    assert reason == (
+        "filename capture positions are too far apart for an automatic edge"
+    )
 
 
 def test_nearby_filename_match_remains_eligible() -> None:
