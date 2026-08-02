@@ -131,6 +131,8 @@ These are correctness constraints, not optional heuristics:
 
 A pair is accepted only as either a near duplicate with essentially identical document-specific ink, or the same scene with a large coherent physical occlusion and near-exact agreement outside it. A registered hard contradiction prevents a transitive graph bridge. Registration failure alone does not block a bridge because heavily occluded views may share little direct visible content.
 
+Automatic edges additionally require plausible capture-sequence proximity. Distant filename states and full-page ECC-only matches remain continuous-score review candidates rather than entering the graph.
+
 The July 2026 calibration, alternatives tested, timing, and threshold rationale are recorded in [`docs/CLUSTERING_CALIBRATION_20260726.md`](docs/CLUSTERING_CALIBRATION_20260726.md).
 
 ## Explicit neighbor-group manifests

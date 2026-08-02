@@ -87,3 +87,29 @@ Report these channels separately:
 
 The primary recall metric is detection of true same-document partial occlusions. The
 primary safety metric remains contaminated components, not average pair accuracy.
+
+## Automatic-link safety after broad real-data stress testing
+
+The recall score and the automatic graph edge are deliberately separate. A 500-image
+real Vermont stress sample produced twelve deterministic links under the earlier gate;
+all twelve were false on visual review. The probability score remains useful for
+finding these pairs, but they must not enter components automatically.
+
+The production automatic-link gate therefore adds three conservative checks after the
+ordinary near-duplicate or physical-occlusion decision:
+
+- archival filenames with a recognized terminal capture number must share the same
+  prefix and be within twelve capture positions;
+- a full-page match found only by ECC is review-only;
+- a physical-occlusion match with substantial exterior ink disagreement requires
+  stronger feature-overlap or alignment support.
+
+A safety-demoted pair keeps its continuous probabilities and can still appear in the
+sequence-aware review queue. It is not converted into a hard content contradiction
+merely because operational sequence evidence is insufficient.
+
+Full ECC is also guarded for runtime. It runs only when at least one cheap signal is
+present: a bounded small-motion affine seed, at least fifty exact ratio-test matches,
+or coarse phase-correlation response of at least 0.12. Exact BF matching remains the
+primary matcher; approximate FLANN matching was tested but introduced an unstable
+false edge and did not improve runtime at this descriptor scale.
