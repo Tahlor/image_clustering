@@ -111,3 +111,36 @@ def test_nonconflicting_accepted_pairs_are_excluded_by_default() -> None:
     assert len(default) == 4
     assert len(with_accepted) == 5
     assert with_accepted[-1].review_tier == 5
+
+
+def test_unflagged_rejected_pair_skips_raw_contradiction_work(monkeypatch) -> None:
+    result = _result()
+    comparisons = list(result.comparisons)
+    comparisons[2] = PairComparison(
+        **{
+            **comparisons[2].to_dict(),
+            "occlusion_candidate_flag": False,
+        }
+    )
+    result = ClusteringResult(
+        config_fingerprint=result.config_fingerprint,
+        images=result.images,
+        clusters=result.clusters,
+        comparisons=tuple(comparisons),
+    )
+
+    original = __import__(
+        "image_clustering.clustering.candidate_review",
+        fromlist=["_raw_hard_contradiction"],
+    )._raw_hard_contradiction
+
+    def guarded(comparison, config):
+        if not comparison.same_document:
+            raise AssertionError("rejected pair recomputed contradiction evidence")
+        return original(comparison, config)
+
+    monkeypatch.setattr(
+        "image_clustering.clustering.candidate_review._raw_hard_contradiction",
+        guarded,
+    )
+    rank_occlusion_candidates(result)
