@@ -13,8 +13,9 @@ resize the original source image.
 Existing descriptor-only cache entries are upgraded in place without recomputing SIFT.
 The default cache remains compressed to control disk use. Set
 `feature_cache_compressed=false` for a larger but faster local-NVMe cache. The cache key
-includes source path, size, modification time, working dimension, SIFT parameters, and
-cache format, so changed sources or feature settings cannot reuse stale entries.
+includes source path, size, modification time, working dimension, SIFT parameters,
+cache format, and numerical-library versions, so changed sources or feature settings
+cannot reuse stale entries.
 
 ## Pair-comparison cache
 
@@ -28,11 +29,12 @@ The key includes:
 - both source identities and file metadata;
 - the pair index gap and sequence;
 - all configuration fields that can affect scoring;
-- a hash of the clustering source modules that implement feature extraction,
-  registration, content analysis, probability scoring, and pair decisions.
+- a hash of the clustering source modules and Python/OpenCV/NumPy versions that
+  implement feature extraction, registration, content analysis, probability scoring,
+  and pair decisions.
 
-Changing scoring code or a scoring threshold automatically invalidates the relevant
-cache. Operational settings such as worker count do not.
+Changing scoring code, a numerical runtime, or a scoring threshold automatically
+invalidates the relevant cache. Operational settings such as worker count do not.
 
 ## Configuration
 
