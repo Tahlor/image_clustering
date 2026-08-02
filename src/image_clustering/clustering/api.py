@@ -26,6 +26,11 @@ from image_clustering.clustering.models import (
     ImageItem,
     PairComparison,
 )
+from image_clustering.clustering.pair_cache import (
+    load_pair_comparison,
+    pair_cache_key,
+    save_pair_comparison,
+)
 from image_clustering.clustering.scoring import score_pair
 
 T = TypeVar("T")
@@ -74,6 +79,7 @@ def _ordered_map(
 def _score_sequence(
     features: list[ImageFeatures],
     config: ClusterConfig,
+    cache_dir: Path | None,
     workers: int,
     show_progress: bool,
 ) -> list[PairComparison]:
@@ -87,12 +93,29 @@ def _score_sequence(
 
     def run(job: tuple[int, int]) -> PairComparison:
         first_index, second_index = job
-        return score_pair(
-            previous=features[first_index],
-            current=features[second_index],
-            index_gap=second_index - first_index,
+        previous = features[first_index]
+        current = features[second_index]
+        index_gap = second_index - first_index
+        cache_key = None
+        if config.cache_pairs and cache_dir is not None:
+            cache_key = pair_cache_key(
+                previous=previous,
+                current=current,
+                index_gap=index_gap,
+                config=config,
+            )
+            cached = load_pair_comparison(cache_dir, cache_key)
+            if cached is not None:
+                return cached
+        comparison = score_pair(
+            previous=previous,
+            current=current,
+            index_gap=index_gap,
             config=config,
         )
+        if cache_key is not None and cache_dir is not None:
+            save_pair_comparison(cache_dir, cache_key, comparison)
+        return comparison
 
     sequence_id = features[0].image.sequence_id
     return _ordered_map(
@@ -128,6 +151,7 @@ def _cluster_sequence(
     comparisons = _score_sequence(
         features=features,
         config=config,
+        cache_dir=cache_dir,
         workers=workers,
         show_progress=show_progress,
     )
@@ -155,7 +179,7 @@ def cluster_images(
         image_paths: Images in sequence order. This function does not sort them.
         sequence_id: Stable identifier for the independent sequence.
         config: Optional clustering configuration.
-        cache_dir: Optional persistent feature cache.
+        cache_dir: Optional exact feature and pair-result cache.
         show_progress: Whether to display progress for sufficiently large jobs.
 
     Returns:
@@ -194,7 +218,7 @@ def cluster_directory(
     Args:
         input_dir: Root containing images in one or more folders.
         config: Optional clustering configuration.
-        cache_dir: Optional persistent feature cache.
+        cache_dir: Optional exact feature and pair-result cache.
         show_progress: Whether to display progress for sufficiently large jobs.
 
     Returns:
