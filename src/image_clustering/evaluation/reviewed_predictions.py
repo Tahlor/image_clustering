@@ -66,7 +66,13 @@ def load_prediction_source(
     id_map: Mapping[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, str] | None]:
     mapping = id_map or {}
-    if path.suffix.lower() != ".json":
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            return [
+                _canonicalize_pair(row, mapping) for row in csv.DictReader(handle)
+            ], None
+    if suffix != ".json":
         return [_canonicalize_pair(row, mapping) for row in load_jsonl(path)], None
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, list):
@@ -101,6 +107,20 @@ def prediction_key(row: Mapping[str, Any]) -> tuple[str, str]:
     return tuple(sorted((first, second)))
 
 
+def _boolean(row: Mapping[str, Any], name: str, default: bool = False) -> bool:
+    value = row.get(name, default)
+    if isinstance(value, bool):
+        return value
+    if value is None or value == "":
+        return default
+    text = str(value).strip().lower()
+    if text in {"true", "1", "yes", "y"}:
+        return True
+    if text in {"false", "0", "no", "n"}:
+        return False
+    raise ValueError(f"{name} must be boolean, got {value!r}")
+
+
 def _probability(row: Mapping[str, Any], name: str, default: float) -> float:
     value = float(row.get(name, default))
     if not 0.0 <= value <= 1.0 or not math.isfinite(value):
@@ -110,25 +130,19 @@ def _probability(row: Mapping[str, Any], name: str, default: float) -> float:
 
 def normalize_prediction(row: Mapping[str, Any]) -> dict[str, Any]:
     first, second = prediction_key(row)
-    contradiction = bool(row.get("hard_contradiction", False))
-    same = bool(
-        _coalesce(
-            row,
-            "same_document",
-            "deterministic_same_document",
-            default=False,
-        )
+    contradiction = _boolean(row, "hard_contradiction", False)
+    same_name = (
+        "same_document" if "same_document" in row else "deterministic_same_document"
     )
-    eligible = bool(row.get("automatic_link_eligible", same))
+    same = _boolean(row, same_name, False)
+    eligible = _boolean(row, "automatic_link_eligible", same)
     edge = same and eligible and not contradiction
-    candidate = bool(
-        _coalesce(
-            row,
-            "occlusion_candidate_flag",
-            "candidate_flag",
-            default=False,
-        )
+    candidate_name = (
+        "occlusion_candidate_flag"
+        if "occlusion_candidate_flag" in row
+        else "candidate_flag"
     )
+    candidate = _boolean(row, candidate_name, False)
     p_same = _probability(row, "same_document_probability", float(same))
     q = _probability(row, "occluded_given_same_probability", 0.0)
     p_clean = _probability(row, "same_clean_probability", p_same * (1 - q))
