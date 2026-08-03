@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 from image_clustering.evaluation.reviewed_models import (
     SPLIT_VERSION,
