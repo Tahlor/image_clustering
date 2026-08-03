@@ -32,6 +32,9 @@ python analysis/reviewed_real_occlusion/run_pipeline.py \
   --config analysis/reviewed_real_occlusion/baseline_config.json
 ```
 
+The command is intentionally fail-closed: integrity drift, split leakage, malformed
+predictions, negative automatic edges, and contaminated components stop the run.
+
 Complete the generated
 `prepared/accepted_group_occlusion_subtypes.csv` by visual inspection, then rerun
 with `--subtypes` pointing to that completed sidecar. The source accepted/rejected
