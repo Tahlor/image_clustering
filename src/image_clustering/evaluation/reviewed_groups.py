@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from image_clustering.evaluation.reviewed_calibration import (
     apply_isotonic,
@@ -40,6 +40,7 @@ from image_clustering.evaluation.reviewed_prepare import (
 )
 from image_clustering.evaluation.reviewed_split import make_grouped_splits
 from image_clustering.evaluation.reviewed_validate import validate_manifest
+
 
 __all__ = [
     "ALLOWED_SUBTYPES",
