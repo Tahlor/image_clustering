@@ -42,23 +42,57 @@ _FEATURE_NAMES = (
     "visible_exterior_fraction",
 )
 
+# Development fit plus Platt calibration on the separate selection split. Runtime
+# inference is a pair of tiny linear models and does not require scikit-learn.
 _IDENTITY_INTERCEPT = -25.032403217297773
 _IDENTITY_COEFFICIENTS = (
-    -3.30523264275, 1.54165319374, 10.8673154655, 3.02391782739,
-    2.95748489785, 14.318220195, 1.3601496971, 12.911490102,
-    9.98239985807, -25.104974442, 2.94313315568, -7.41409816239,
-    -0.113294723829, -2.76520017095, 0.717476905671, 1.26170244453,
-    -0.450872517669, 0.468714776354, 6.20489537405, -1.86654378948,
-    -0.382983552484, 2.76520017095,
+    -3.30523264275,
+    1.54165319374,
+    10.8673154655,
+    3.02391782739,
+    2.95748489785,
+    14.318220195,
+    1.3601496971,
+    12.911490102,
+    9.98239985807,
+    -25.104974442,
+    2.94313315568,
+    -7.41409816239,
+    -0.113294723829,
+    -2.76520017095,
+    0.717476905671,
+    1.26170244453,
+    -0.450872517669,
+    0.468714776354,
+    6.20489537405,
+    -1.86654378948,
+    -0.382983552484,
+    2.76520017095,
 )
 _OCCLUSION_INTERCEPT = -40.3619545391732
 _OCCLUSION_COEFFICIENTS = (
-    -0.0862595982891, 4.63165727698, -39.7763158242, 5.40568144254,
-    -3.80712561427, 29.3484218594, 12.8020717636, 112.588110255,
-    30.6888764169, -367.37276427, -4.59443003663, 41.4537202459,
-    2.20572211637, 1.35998083064, 2.2674292895, 5.08228494261,
-    7.48353954155, 3.74987617885, 68.8749943246, -10.1167134239,
-    0.103324514267, -1.35998083064,
+    -0.0862595982891,
+    4.63165727698,
+    -39.7763158242,
+    5.40568144254,
+    -3.80712561427,
+    29.3484218594,
+    12.8020717636,
+    112.588110255,
+    30.6888764169,
+    -367.37276427,
+    -4.59443003663,
+    41.4537202459,
+    2.20572211637,
+    1.35998083064,
+    2.2674292895,
+    5.08228494261,
+    7.48353954155,
+    3.74987617885,
+    68.8749943246,
+    -10.1167134239,
+    0.103324514267,
+    -1.35998083064,
 )
 
 
@@ -90,13 +124,11 @@ def _linear_probability(
 ) -> float:
     if len(coefficients) != len(values):
         raise ValueError("Probability feature vector has the wrong length")
-    return _sigmoid(
-        intercept
-        + sum(
-            coefficient * value
-            for coefficient, value in zip(coefficients, values, strict=True)
-        )
+    terms = zip(coefficients, values, strict=True)
+    linear_value = sum(
+        coefficient * value for coefficient, value in terms
     )
+    return _sigmoid(intercept + linear_value)
 
 
 def _ramp(value: float, floor: float, full: float) -> float:
@@ -109,7 +141,14 @@ def _occlusion_evidence(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> float:
-    """Measure whether one physical block explains the text-channel mismatch."""
+    """Measure whether one physical block explains the text-channel mismatch.
+
+    The synthetic classifier learned that broad disagreement often accompanies an
+    occlusion. Real same-template/different-record pages violate that shortcut: the
+    form registers well while handwriting changes throughout the page. This gate
+    requires a contiguous candidate to capture the mismatch and requires the text
+    channel outside the candidate to remain substantially stable.
+    """
     if not 1 <= content.occlusion_candidate_count <= 2:
         return 0.0
 
@@ -153,6 +192,7 @@ def _occlusion_evidence(
         0.006,
         max(0.04, config.occlusion_min_material_median * 2.0),
     )
+
     outside_union = 1.0 - _ramp(
         content.outside_unmatched_ink_union_fraction,
         config.occlusion_clean_max_outside_unmatched_ink_union_fraction,
@@ -164,6 +204,10 @@ def _occlusion_evidence(
         config.occlusion_extreme_max_outside_ink_mismatch_tiles_fraction,
     )
     exterior_agreement = min(outside_union, outside_tiles)
+
+    # A full-page insert has little or no exterior to score. Material change is
+    # then the only acceptable substitute; this does not rescue ordinary filled
+    # forms because their broad difference is mostly thin text, not a sheet.
     if content.full_page_occlusion_count and page_support >= 0.70:
         exterior_agreement = max(exterior_agreement, 0.50 * material)
 
@@ -181,6 +225,7 @@ def _occlusion_evidence(
         + 0.08 * shape
         + 0.18 * block_replacement
     )
+
     distributed_replacement = (
         content.outside_unmatched_ink_union_fraction
         >= config.occlusion_evidence_distributed_outside_union_fraction
@@ -248,32 +293,42 @@ def pair_probabilities(
     candidate_threshold: float,
     config: ClusterConfig | None = None,
 ) -> PairProbabilities:
-    """Return synthetic probabilities gated by real physical evidence."""
-    values = _feature_values(registration, change, content)
+    """Return synthetic-calibrated probabilities and safe action flags.
+
+    ``candidate_flag`` is deliberately recall-oriented. ``automatic_link_eligible``
+    never follows the probability directly; it requires the existing conservative
+    deterministic acceptance and the absence of a hard contradiction.
+    """
+    values = _feature_values(
+        registration=registration,
+        change=change,
+        content=content,
+    )
     p_same = _linear_probability(
         _IDENTITY_INTERCEPT,
         _IDENTITY_COEFFICIENTS,
         values,
     )
-    raw_q = _linear_probability(
+    raw_occluded_given_same = _linear_probability(
         _OCCLUSION_INTERCEPT,
         _OCCLUSION_COEFFICIENTS,
         values,
     )
-    evidence = _occlusion_evidence(content, config or ClusterConfig())
-    q = raw_q * evidence
-    p_same_occluded = p_same * q
-    p_same_clean = p_same * (1.0 - q)
+    evidence_config = config or ClusterConfig()
+    occlusion_evidence = _occlusion_evidence(content, evidence_config)
+    p_occluded_given_same = raw_occluded_given_same * occlusion_evidence
+    p_same_occluded = p_same * p_occluded_given_same
+    p_same_clean = p_same * (1.0 - p_occluded_given_same)
     return PairProbabilities(
         same_document=p_same,
-        occluded_given_same=q,
+        occluded_given_same=p_occluded_given_same,
         same_clean=p_same_clean,
         same_occluded=p_same_occluded,
         different_document=1.0 - p_same,
         candidate_flag=p_same_occluded >= candidate_threshold,
         automatic_link_eligible=accepted and not hard_contradiction,
-        raw_occluded_given_same=raw_q,
-        occlusion_evidence=evidence,
+        raw_occluded_given_same=raw_occluded_given_same,
+        occlusion_evidence=occlusion_evidence,
     )
 
 
