@@ -5,8 +5,9 @@ from __future__ import annotations
 import csv
 import json
 import math
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from image_clustering.evaluation.reviewed_models import SCHEMA_VERSION, load_jsonl
 
