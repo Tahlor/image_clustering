@@ -45,14 +45,35 @@ def _looks_like_different_filled_record(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> bool:
-    """Detect page-wide two-sided ink replacement on a preserved form."""
-    return (
+    """Detect a preserved form populated with different record-specific text."""
+    overwhelming_replacement = (
         content.unmatched_ink_union_fraction
         >= config.occlusion_different_record_min_unmatched_ink_union_fraction
         and content.ink_mismatch_tiles_fraction
         >= config.occlusion_different_record_min_ink_mismatch_tiles_fraction
         and content.occlusion_material_median
         < config.occlusion_different_record_max_material_median
+    )
+    thin_text_replacement = (
+        content.unmatched_ink_union_fraction
+        >= config.contradiction_text_min_unmatched_ink_union_fraction
+        and content.ink_mismatch_tiles_fraction
+        >= config.contradiction_text_min_ink_mismatch_tiles_fraction
+        and content.inside_unmatched_ink_union_fraction
+        < config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
+        and content.occlusion_material_median < 0.006
+    )
+    distributed_outside_replacement = (
+        content.outside_unmatched_ink_union_fraction
+        >= config.occlusion_evidence_distributed_outside_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        >= config.occlusion_evidence_distributed_outside_tiles_fraction
+        and content.occlusion_ink_mismatch_capture < 0.60
+    )
+    return (
+        overwhelming_replacement
+        or thin_text_replacement
+        or distributed_outside_replacement
     )
 
 
@@ -72,6 +93,18 @@ def _physical_occlusion(
     if not 1 <= content.occlusion_candidate_count <= 2:
         return False
     if _looks_like_different_filled_record(content, config):
+        return False
+    if (
+        content.occlusion_ink_mismatch_capture
+        < config.occlusion_evidence_min_ink_mismatch_capture
+    ):
+        return False
+    block_replacement = (
+        content.inside_unmatched_ink_union_fraction
+        >= config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
+        or content.occlusion_material_median >= 0.006
+    )
+    if not block_replacement:
         return False
 
     changed_fraction = change["changed_fraction"]

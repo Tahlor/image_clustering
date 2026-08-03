@@ -30,6 +30,9 @@ class ContentMetrics:
     full_page_occlusion_count: int
     shallow_occlusion_count: int
     page_count: int
+    inside_unmatched_ink_union_fraction: float = 0.0
+    occlusion_ink_mismatch_capture: float = 0.0
+    occlusion_localization_contrast: float = 0.0
 
 
 @dataclass(frozen=True)

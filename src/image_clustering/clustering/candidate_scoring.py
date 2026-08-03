@@ -11,10 +11,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
 
-_MODEL_VERSION = "vermont-synthetic-logit-v1"
+_MODEL_VERSION = "vermont-synthetic-logit-v2-localized-occlusion-gate"
 
 _FEATURE_NAMES = (
     "registration_fallback",
@@ -106,6 +107,8 @@ class PairProbabilities:
     different_document: float
     candidate_flag: bool
     automatic_link_eligible: bool
+    raw_occluded_given_same: float
+    occlusion_evidence: float
     model_version: str = _MODEL_VERSION
 
 
@@ -126,6 +129,123 @@ def _linear_probability(
         coefficient * value for coefficient, value in terms
     )
     return _sigmoid(intercept + linear_value)
+
+
+def _ramp(value: float, floor: float, full: float) -> float:
+    if full <= floor:
+        return float(value >= full)
+    return float(max(0.0, min(1.0, (value - floor) / (full - floor))))
+
+
+def _occlusion_evidence(
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> float:
+    """Measure whether one physical block explains the text-channel mismatch.
+
+    The synthetic classifier learned that broad disagreement often accompanies an
+    occlusion. Real same-template/different-record pages violate that shortcut: the
+    form registers well while handwriting changes throughout the page. This gate
+    requires a contiguous candidate to capture the mismatch and requires the text
+    channel outside the candidate to remain substantially stable.
+    """
+    if not 1 <= content.occlusion_candidate_count <= 2:
+        return 0.0
+
+    page_support = (
+        content.occlusion_area_fraction
+        * max(content.page_count, 1)
+        / max(content.occlusion_candidate_count, 1)
+    )
+    support = _ramp(
+        page_support,
+        config.occlusion_min_page_support_fraction * 0.45,
+        config.occlusion_min_page_support_fraction,
+    )
+    residual_capture = _ramp(
+        content.occlusion_residual_capture,
+        config.occlusion_min_residual_capture * 0.45,
+        min(1.0, config.occlusion_min_residual_capture * 1.75),
+    )
+    ink_capture = _ramp(
+        content.occlusion_ink_mismatch_capture,
+        config.occlusion_evidence_min_ink_mismatch_capture,
+        config.occlusion_evidence_full_ink_mismatch_capture,
+    )
+    localization_contrast = _ramp(
+        content.occlusion_localization_contrast,
+        config.occlusion_evidence_min_localization_contrast,
+        config.occlusion_evidence_full_localization_contrast,
+    )
+    inside_disagreement = _ramp(
+        content.inside_unmatched_ink_union_fraction,
+        config.occlusion_evidence_min_inside_unmatched_ink_union_fraction,
+        config.occlusion_evidence_full_inside_unmatched_ink_union_fraction,
+    )
+    shape = _ramp(
+        content.occlusion_rectangularity,
+        config.occlusion_min_support_fill_fraction * 0.50,
+        max(0.60, config.occlusion_min_support_fill_fraction * 2.5),
+    )
+    material = _ramp(
+        content.occlusion_material_median,
+        0.006,
+        max(0.04, config.occlusion_min_material_median * 2.0),
+    )
+
+    outside_union = 1.0 - _ramp(
+        content.outside_unmatched_ink_union_fraction,
+        config.occlusion_clean_max_outside_unmatched_ink_union_fraction,
+        config.occlusion_extreme_max_outside_unmatched_ink_union_fraction,
+    )
+    outside_tiles = 1.0 - _ramp(
+        content.outside_ink_mismatch_tiles_fraction,
+        config.occlusion_geometric_max_outside_ink_mismatch_tiles_fraction,
+        config.occlusion_extreme_max_outside_ink_mismatch_tiles_fraction,
+    )
+    exterior_agreement = min(outside_union, outside_tiles)
+
+    # A full-page insert has little or no exterior to score. Material change is
+    # then the only acceptable substitute; this does not rescue ordinary filled
+    # forms because their broad difference is mostly thin text, not a sheet.
+    if content.full_page_occlusion_count and page_support >= 0.70:
+        exterior_agreement = max(exterior_agreement, 0.50 * material)
+
+    localization = (
+        0.55 * ink_capture
+        + 0.25 * localization_contrast
+        + 0.20 * inside_disagreement
+    )
+    block_replacement = max(inside_disagreement, material)
+    evidence = (
+        0.12 * support
+        + 0.22 * residual_capture
+        + 0.22 * localization
+        + 0.18 * exterior_agreement
+        + 0.08 * shape
+        + 0.18 * block_replacement
+    )
+
+    distributed_replacement = (
+        content.outside_unmatched_ink_union_fraction
+        >= config.occlusion_evidence_distributed_outside_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        >= config.occlusion_evidence_distributed_outside_tiles_fraction
+    )
+    weak_localization = (
+        content.occlusion_ink_mismatch_capture
+        < config.occlusion_evidence_min_ink_mismatch_capture
+        and content.occlusion_residual_capture
+        < config.occlusion_min_residual_capture
+    )
+    thin_text_only = (
+        content.inside_unmatched_ink_union_fraction
+        < config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
+        and content.occlusion_material_median < 0.006
+    )
+    if distributed_replacement or weak_localization or thin_text_only:
+        evidence *= config.occlusion_evidence_distributed_penalty
+    return float(max(0.0, min(1.0, evidence)))
 
 
 def _feature_values(
@@ -171,6 +291,7 @@ def pair_probabilities(
     accepted: bool,
     hard_contradiction: bool,
     candidate_threshold: float,
+    config: ClusterConfig | None = None,
 ) -> PairProbabilities:
     """Return synthetic-calibrated probabilities and safe action flags.
 
@@ -188,11 +309,14 @@ def pair_probabilities(
         _IDENTITY_COEFFICIENTS,
         values,
     )
-    p_occluded_given_same = _linear_probability(
+    raw_occluded_given_same = _linear_probability(
         _OCCLUSION_INTERCEPT,
         _OCCLUSION_COEFFICIENTS,
         values,
     )
+    evidence_config = config or ClusterConfig()
+    occlusion_evidence = _occlusion_evidence(content, evidence_config)
+    p_occluded_given_same = raw_occluded_given_same * occlusion_evidence
     p_same_occluded = p_same * p_occluded_given_same
     p_same_clean = p_same * (1.0 - p_occluded_given_same)
     return PairProbabilities(
@@ -203,6 +327,8 @@ def pair_probabilities(
         different_document=1.0 - p_same,
         candidate_flag=p_same_occluded >= candidate_threshold,
         automatic_link_eligible=accepted and not hard_contradiction,
+        raw_occluded_given_same=raw_occluded_given_same,
+        occlusion_evidence=occlusion_evidence,
     )
 
 
