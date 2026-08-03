@@ -1,0 +1,33 @@
+name: Cleanup merged branch once
+
+on:
+  schedule:
+    - cron: "10 22 3 8 *"
+  push:
+    branches:
+      - master
+    paths:
+      - .github/cleanup-trigger.txt
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Delete merged branch and cleanup artifacts
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git push origin --delete agent/reviewed-200-real-gt
+          rm .github/cleanup-trigger.txt
+          rm .github/workflows/cleanup-merged-branch-once.yml
+          git add -A
+          git commit -m 'Remove one-time branch cleanup artifacts'
+          git push origin master
