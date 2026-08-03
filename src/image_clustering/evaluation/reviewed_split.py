@@ -51,23 +51,26 @@ def make_grouped_splits(
     )
     for sequence_id, groups in ordered:
         family_truth = Counter(group[0].review_decision for group in groups)
-
-        def cost(split: str) -> tuple[float, int]:
-            total_after = assigned_total[split] + len(groups)
-            total_error = abs(total_after - desired_total[split]) / max(
-                desired_total[split], 1
-            )
+        costs = {}
+        for candidate_split in splits:
+            total_after = assigned_total[candidate_split] + len(groups)
+            total_error = abs(
+                total_after - desired_total[candidate_split]
+            ) / max(desired_total[candidate_split], 1)
             truth_error = sum(
-                abs(assigned_truth[split][truth] + count - desired_truth[split][truth])
-                / max(desired_truth[split][truth], 1)
+                abs(
+                    assigned_truth[candidate_split][truth]
+                    + count
+                    - desired_truth[candidate_split][truth]
+                )
+                / max(desired_truth[candidate_split][truth], 1)
                 for truth, count in family_truth.items()
             )
-            return (
+            costs[candidate_split] = (
                 total_error + truth_error,
-                stable_hash(f"{sequence_id}:{split}"),
+                stable_hash(f"{sequence_id}:{candidate_split}"),
             )
-
-        split = min(splits, key=cost)
+        split = min(splits, key=costs.__getitem__)
         assigned_total[split] += len(groups)
         assigned_truth[split].update(family_truth)
         output.extend(
