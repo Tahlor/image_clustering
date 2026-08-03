@@ -38,6 +38,7 @@ from image_clustering.evaluation.reviewed_prepare import (
     prepare_dataset,
     stage_review_images,
 )
+from image_clustering.evaluation.reviewed_score_replay import tune_candidate_replay
 from image_clustering.evaluation.reviewed_split import make_grouped_splits
 from image_clustering.evaluation.reviewed_validate import validate_manifest
 
@@ -64,6 +65,7 @@ __all__ = [
     "pair_id",
     "prepare_dataset",
     "stage_review_images",
+    "tune_candidate_replay",
     "validate_manifest",
 ]
 
@@ -93,6 +95,13 @@ def _parser() -> argparse.ArgumentParser:
     calibrate.add_argument("--pair-results", type=Path, required=True)
     calibrate.add_argument("--output", type=Path, required=True)
     calibrate.add_argument("--subtypes", type=Path)
+
+    replay = subparsers.add_parser("tune-candidate-replay")
+    replay.add_argument("--assignments-csv", type=Path, required=True)
+    replay.add_argument("--candidates-csv", type=Path, required=True)
+    replay.add_argument("--prepared-dir", type=Path, required=True)
+    replay.add_argument("--output-dir", type=Path, required=True)
+    replay.add_argument("--max-review-fraction", type=float, default=1.0)
 
     compare = subparsers.add_parser("compare")
     compare.add_argument("--before", type=Path, required=True)
@@ -127,6 +136,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.pair_results,
             args.output,
             subtype_path=args.subtypes,
+        )
+    elif args.command == "tune-candidate-replay":
+        output = tune_candidate_replay(
+            args.assignments_csv,
+            args.candidates_csv,
+            args.prepared_dir,
+            args.output_dir,
+            max_review_fraction=args.max_review_fraction,
         )
     else:
         output = compare_runs(args.before, args.after, args.output)
