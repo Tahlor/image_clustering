@@ -2,7 +2,8 @@
 
 This analysis treats the 200 manually reviewed `original_cluster_id` values as
 the independent evaluation units. It does not import the 1,001 unreviewed or 26
-irregular source proposals.
+irregular source proposals. Issue #16 tracks the authoritative mounted-package run
+and visual subtype review after this reproducible evaluation path is merged.
 
 ## Safety contract
 
