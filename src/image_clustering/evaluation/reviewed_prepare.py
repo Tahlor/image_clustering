@@ -7,8 +7,9 @@ import json
 import os
 import shutil
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from image_clustering.evaluation.reviewed_models import (
     ALLOWED_SUBTYPES,
