@@ -49,6 +49,12 @@ evaluation sequence. This reconstructs the reviewed comparisons while preventing
 unreviewed cross-proposal pairs from changing reviewed components. A reversible
 `prediction_image_id` to canonical `image_id` map is written and enforced.
 
+## Validation
+
+Repository CI runs Ruff and the complete pytest suite on Python 3.10 and 3.12.
+The focused reviewed-data tests use the exact package population shape and verify
+that review probabilities cannot create automatic graph edges.
+
 ## Promotion gates
 
 A final run exits nonzero unless both are true:
