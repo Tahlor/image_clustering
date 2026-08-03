@@ -8,7 +8,7 @@ import numpy as np
 from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content_features import (
     _clean_mismatch,
-    _ink_mask,
+    _paired_ink_masks,
     local_dissimilarity,
 )
 from image_clustering.clustering.content_geometry import _tile_bounds
@@ -26,8 +26,12 @@ def compute_content_grid(
     if int(core.sum()) < 1000:
         return None
 
-    reference_ink = _ink_mask(reference, core, config)
-    aligned_ink = _ink_mask(aligned, core, config)
+    reference_ink, aligned_ink = _paired_ink_masks(
+        reference,
+        aligned,
+        core,
+        config,
+    )
     tolerance = max(1, round(min(reference.shape) * config.ink_tolerance_fraction))
     kernel = cv2.getStructuringElement(
         cv2.MORPH_ELLIPSE,
