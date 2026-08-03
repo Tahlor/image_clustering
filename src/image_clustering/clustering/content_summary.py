@@ -96,12 +96,26 @@ def build_content_metrics(
     )
     material_median = float(np.median(material_values)) if material_values.size else 0.0
 
+    inside = grid.core & candidate_mask
+    inside_mismatch = int(grid.mismatch[inside].sum())
+    total_mismatch = int(grid.mismatch[grid.core].sum())
+    inside_unmatched_union_fraction = float(
+        inside_mismatch / max(grid.ink_union[inside].sum(), 10)
+    )
+    occlusion_ink_mismatch_capture = float(
+        inside_mismatch / max(total_mismatch, 1)
+    )
+
     outside = grid.core & ~candidate_mask
     outside_unmatched_fraction = (
         float(grid.mismatch[outside].mean()) if outside.any() else 1.0
     )
     outside_unmatched_union_fraction = float(
         grid.mismatch[outside].sum() / max(grid.ink_union[outside].sum(), 10)
+    )
+    localization_contrast = max(
+        0.0,
+        inside_unmatched_union_fraction - outside_unmatched_union_fraction,
     )
     outside_tile_mask = grid.valid_tiles & ~candidate_tile_mask
     outside_ink_tiles_fraction = float(
@@ -130,4 +144,9 @@ def build_content_metrics(
         full_page_occlusion_count=full_page_count,
         shallow_occlusion_count=shallow_count,
         page_count=len(page_regions),
+        inside_unmatched_ink_union_fraction=(
+            inside_unmatched_union_fraction
+        ),
+        occlusion_ink_mismatch_capture=occlusion_ink_mismatch_capture,
+        occlusion_localization_contrast=localization_contrast,
     )
