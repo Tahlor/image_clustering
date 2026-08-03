@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from image_clustering.evaluation.reviewed_metrics_helpers import (
     binary_probability_metrics,
