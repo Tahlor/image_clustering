@@ -44,7 +44,7 @@ def build_package(root: Path) -> tuple[Path, Path]:
                     f"image_{cluster_number:05d}_{offset:02d}.jpg"
                 )
                 assignment_id = (
-                    cluster_id
+                    f"accepted_assignment_{cluster_number:05d}"
                     if decision == "accepted"
                     else f"{cluster_id}__separated_{offset + 1:05d}"
                 )
