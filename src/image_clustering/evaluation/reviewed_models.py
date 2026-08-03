@@ -7,9 +7,10 @@ import hashlib
 import itertools
 import json
 from collections import Counter, defaultdict
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 SCHEMA_VERSION = "1.0"
 SPLIT_VERSION = "reviewed-real-v1"
