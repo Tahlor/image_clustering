@@ -27,6 +27,7 @@ image-crop = "image_clustering.cropping.cli:main"
 image-label = "image_clustering.evaluation.cli:main"
 image-review = "image_clustering.review.cli:main"
 image-occlusion-review = "image_clustering.candidate_review_cli:main"
+image-reviewed-eval = "image_clustering.evaluation.reviewed_groups:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
