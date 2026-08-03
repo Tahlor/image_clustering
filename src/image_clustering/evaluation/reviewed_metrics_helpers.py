@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 
 
 def mean(values: Iterable[float]) -> float | None:
