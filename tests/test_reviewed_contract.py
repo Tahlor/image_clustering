@@ -39,6 +39,49 @@ def test_integrity_contract_and_pair_expansion(tmp_path: Path) -> None:
     assert len(negatives) == CONTRACT.negative_pairs
 
 
+def test_accepted_assignment_need_not_equal_original_cluster_id(
+    tmp_path: Path,
+) -> None:
+    csv_path, jsonl_path = build_package(tmp_path)
+    report = validate_manifest(
+        csv_path, jsonl_path=jsonl_path, package_root=tmp_path
+    )
+    assert report["status"] == "pass"
+    rows = load_csv_manifest(csv_path)
+    accepted = next(row for row in rows if row.review_decision == "accepted")
+    assert accepted.assignment_id != accepted.original_cluster_id
+
+
+def test_assignment_id_cannot_span_original_clusters(tmp_path: Path) -> None:
+    csv_path, jsonl_path = build_package(tmp_path)
+    rows = list(csv.DictReader(csv_path.open(newline="", encoding="utf-8")))
+    first_rejected = next(
+        row for row in rows if row["review_decision"] == "rejected"
+    )
+    second_rejected = next(
+        row
+        for row in rows
+        if row["review_decision"] == "rejected"
+        and row["original_cluster_id"] != first_rejected["original_cluster_id"]
+    )
+    second_rejected["assignment_id"] = first_rejected["assignment_id"]
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0])
+        writer.writeheader()
+        writer.writerows(rows)
+    with jsonl_path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row) + "\n")
+    report = validate_manifest(
+        csv_path, jsonl_path=jsonl_path, package_root=tmp_path
+    )
+    assert report["status"] == "fail"
+    assert any(
+        "assignment IDs span original clusters" in error
+        for error in report["errors"]
+    )
+
+
 def test_integrity_fails_instead_of_repairing_labels(tmp_path: Path) -> None:
     csv_path, jsonl_path = build_package(tmp_path)
     lines = csv_path.read_text().splitlines()
