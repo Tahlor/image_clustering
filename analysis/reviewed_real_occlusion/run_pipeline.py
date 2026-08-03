@@ -8,9 +8,10 @@ import json
 import shutil
 import time
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from image_clustering.clustering import (
     ClusterConfig,
