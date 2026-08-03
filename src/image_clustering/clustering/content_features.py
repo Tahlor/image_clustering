@@ -36,11 +36,12 @@ def local_dissimilarity(reference: np.ndarray, aligned: np.ndarray) -> np.ndarra
     return np.clip(0.55 * absolute_difference + 0.45 * (1.0 - ssim), 0, 1)
 
 
-def _ink_mask(
+def _ink_response(
     image: np.ndarray,
     core: np.ndarray,
     config: ClusterConfig,
 ) -> np.ndarray:
+    """Return a smooth stroke-likelihood image for handwriting and print."""
     sigma = max(5.0, min(image.shape) * config.ink_background_sigma_fraction)
     values = image.astype(np.float32)
     background = cv2.GaussianBlur(values, (0, 0), sigmaX=sigma)
@@ -54,20 +55,43 @@ def _ink_mask(
         gradient = np.clip((gradient - low) / max(high - low, 1.0), 0.0, 1.0)
     else:
         gradient = np.zeros_like(values)
-    response = np.clip(dark + config.ink_gradient_weight * gradient, 0.0, 1.0)
-    valid_response = np.clip(response[core] * 255.0, 0, 255).astype(np.uint8)
-    if valid_response.size < 100:
-        return np.zeros_like(core)
+    return np.clip(dark + config.ink_gradient_weight * gradient, 0.0, 1.0)
+
+
+def _shared_ink_threshold(
+    responses: tuple[np.ndarray, ...],
+    core: np.ndarray,
+    config: ClusterConfig,
+) -> float:
+    """Choose one threshold for both registered views.
+
+    Independent Otsu thresholds make the darker scan look as though it contains
+    document-specific ink that is absent from the lighter scan. A pooled threshold
+    preserves the relative stroke evidence and makes the text comparison symmetric.
+    """
+    valid = [
+        np.clip(response[core] * 255.0, 0, 255).astype(np.uint8)
+        for response in responses
+    ]
+    valid = [values for values in valid if values.size]
+    if not valid or sum(values.size for values in valid) < 100:
+        return 1.0
+    pooled = np.concatenate(valid)
     threshold, _ = cv2.threshold(
-        valid_response.reshape(-1, 1),
+        pooled.reshape(-1, 1),
         0,
         255,
         cv2.THRESH_BINARY + cv2.THRESH_OTSU,
     )
-    threshold_fraction = max(
-        config.ink_min_response,
-        float(threshold) / 255.0,
-    )
+    return max(config.ink_min_response, float(threshold) / 255.0)
+
+
+def _clean_ink_mask(
+    response: np.ndarray,
+    core: np.ndarray,
+    threshold_fraction: float,
+    config: ClusterConfig,
+) -> np.ndarray:
     mask = (response >= threshold_fraction) & core
     count, labels, stats, _ = cv2.connectedComponentsWithStats(
         mask.astype(np.uint8),
@@ -84,12 +108,59 @@ def _ink_mask(
     return cleaned
 
 
+def _ink_mask(
+    image: np.ndarray,
+    core: np.ndarray,
+    config: ClusterConfig,
+) -> np.ndarray:
+    """Return a single-image stroke mask for compatibility and diagnostics."""
+    response = _ink_response(image, core, config)
+    threshold = _shared_ink_threshold((response,), core, config)
+    return _clean_ink_mask(response, core, threshold, config)
+
+
+def _paired_ink_masks(
+    reference: np.ndarray,
+    aligned: np.ndarray,
+    core: np.ndarray,
+    config: ClusterConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return registered text-channel masks using one adaptive threshold."""
+    reference_response = _ink_response(reference, core, config)
+    aligned_response = _ink_response(aligned, core, config)
+    threshold = _shared_ink_threshold(
+        (reference_response, aligned_response),
+        core,
+        config,
+    )
+    return (
+        _clean_ink_mask(reference_response, core, threshold, config),
+        _clean_ink_mask(aligned_response, core, threshold, config),
+    )
+
+
 def _clean_mismatch(
     mismatch: np.ndarray,
     config: ClusterConfig,
 ) -> tuple[np.ndarray, list[int]]:
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(
+    """Remove isolated scan noise while retaining connected text strokes.
+
+    Components are found on a narrowly bridged mask so anti-aliased fragments of a
+    letter remain one object. Only original mismatch pixels are retained; the bridge
+    cannot manufacture a large occlusion block or connect distant filled fields.
+    """
+    bridge_radius = max(1, round(min(mismatch.shape) * 0.0015))
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * bridge_radius + 1, 2 * bridge_radius + 1),
+    )
+    bridged = cv2.morphologyEx(
         mismatch.astype(np.uint8),
+        cv2.MORPH_CLOSE,
+        kernel,
+    )
+    count, labels, _, _ = cv2.connectedComponentsWithStats(
+        bridged,
         connectivity=8,
     )
     cleaned = np.zeros_like(mismatch)
@@ -99,8 +170,9 @@ def _clean_mismatch(
     )
     areas: list[int] = []
     for label in range(1, count):
-        area = int(stats[label, cv2.CC_STAT_AREA])
-        if area >= minimum_area:
-            cleaned[labels == label] = True
-            areas.append(area)
+        component = labels == label
+        original_area = int((mismatch & component).sum())
+        if original_area >= minimum_area:
+            cleaned[mismatch & component] = True
+            areas.append(original_area)
     return cleaned, areas
