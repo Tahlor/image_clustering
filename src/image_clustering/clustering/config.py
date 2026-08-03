@@ -32,8 +32,21 @@ class ClusterConfig(_ClusterConfig):
     ecc_min_descriptor_matches: int = 50
 
     # The continuous score is a recall-oriented review signal. It never bypasses
-    # deterministic acceptance or hard-contradiction graph safeguards.
+    # deterministic acceptance or hard-contradiction graph safeguards. The raw
+    # synthetic classifier is additionally gated by real physical-occlusion
+    # evidence: most text mismatch must lie inside one contiguous candidate while
+    # the registered text channel outside that candidate remains substantially
+    # stable.
     occlusion_candidate_probability_threshold: float = 0.08
+    occlusion_evidence_min_ink_mismatch_capture: float = 0.15
+    occlusion_evidence_full_ink_mismatch_capture: float = 0.75
+    occlusion_evidence_min_localization_contrast: float = 0.03
+    occlusion_evidence_full_localization_contrast: float = 0.35
+    occlusion_evidence_min_inside_unmatched_ink_union_fraction: float = 0.35
+    occlusion_evidence_full_inside_unmatched_ink_union_fraction: float = 0.70
+    occlusion_evidence_distributed_outside_union_fraction: float = 0.20
+    occlusion_evidence_distributed_outside_tiles_fraction: float = 0.55
+    occlusion_evidence_distributed_penalty: float = 0.05
 
     # Extreme material changes may hide most content. When the remaining exterior
     # is dirty, require stronger identity support before creating an automatic edge.
@@ -62,6 +75,15 @@ class ClusterConfig(_ClusterConfig):
             "ecc_max_translation_fraction",
             "ecc_min_phase_correlation",
             "occlusion_candidate_probability_threshold",
+            "occlusion_evidence_min_ink_mismatch_capture",
+            "occlusion_evidence_full_ink_mismatch_capture",
+            "occlusion_evidence_min_localization_contrast",
+            "occlusion_evidence_full_localization_contrast",
+            "occlusion_evidence_min_inside_unmatched_ink_union_fraction",
+            "occlusion_evidence_full_inside_unmatched_ink_union_fraction",
+            "occlusion_evidence_distributed_outside_union_fraction",
+            "occlusion_evidence_distributed_outside_tiles_fraction",
+            "occlusion_evidence_distributed_penalty",
             "occlusion_dirty_exterior_min_feature_overlap",
             "occlusion_dirty_exterior_min_alignment_score",
             "occlusion_dirty_exterior_min_unmatched_ink_union_fraction",
@@ -70,12 +92,27 @@ class ClusterConfig(_ClusterConfig):
             value = getattr(self, name)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {value}")
-        if self.ecc_max_rotation_degrees <= 0:
-            raise ValueError("ecc_max_rotation_degrees must be positive")
-        if self.ecc_max_iterations < 1:
-            raise ValueError("ecc_max_iterations must be positive")
-        if self.ecc_epsilon <= 0:
-            raise ValueError("ecc_epsilon must be positive")
+        if (
+            self.occlusion_evidence_full_ink_mismatch_capture
+            <= self.occlusion_evidence_min_ink_mismatch_capture
+        ):
+            raise ValueError(
+                "occlusion evidence full ink capture must exceed its minimum"
+            )
+        if (
+            self.occlusion_evidence_full_localization_contrast
+            <= self.occlusion_evidence_min_localization_contrast
+        ):
+            raise ValueError(
+                "occlusion evidence full localization contrast must exceed its minimum"
+            )
+        if (
+            self.occlusion_evidence_full_inside_unmatched_ink_union_fraction
+            <= self.occlusion_evidence_min_inside_unmatched_ink_union_fraction
+        ):
+            raise ValueError(
+                "occlusion evidence full inside mismatch must exceed its minimum"
+            )
         if self.ecc_coarse_dimension < 64:
             raise ValueError("ecc_coarse_dimension must be at least 64")
         if self.ecc_working_dimension < 128:
@@ -86,6 +123,12 @@ class ClusterConfig(_ClusterConfig):
             raise ValueError(
                 "automatic_link_max_numeric_filename_gap must be positive"
             )
+        if self.ecc_max_rotation_degrees <= 0:
+            raise ValueError("ecc_max_rotation_degrees must be positive")
+        if self.ecc_max_iterations < 1:
+            raise ValueError("ecc_max_iterations must be positive")
+        if self.ecc_epsilon <= 0:
+            raise ValueError("ecc_epsilon must be positive")
         if (
             self.ecc_gaussian_filter_size < 1
             or self.ecc_gaussian_filter_size % 2 == 0
