@@ -5,8 +5,9 @@ from __future__ import annotations
 import csv
 import json
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 from image_clustering.evaluation.reviewed_models import (
     CONTRACT,
@@ -94,6 +95,22 @@ def validate_manifest(
 
     accepted: list[list[ManifestRow]] = []
     rejected: list[list[ManifestRow]] = []
+    assignment_clusters: dict[str, set[str]] = {}
+    for row in rows:
+        assignment_clusters.setdefault(row.assignment_id, set()).add(
+            row.original_cluster_id
+        )
+    reused_assignments = {
+        assignment_id: cluster_ids
+        for assignment_id, cluster_ids in assignment_clusters.items()
+        if len(cluster_ids) > 1
+    }
+    if reused_assignments:
+        errors.append(
+            "assignment IDs span original clusters: "
+            f"{dict(list(reused_assignments.items())[:10])}"
+        )
+
     for cluster_id, group in grouped.items():
         decisions = {row.review_decision for row in group}
         if len(decisions) != 1:
@@ -108,7 +125,7 @@ def validate_manifest(
                 for row in group
             ):
                 errors.append(f"{cluster_id} violates accepted-row semantics")
-            if {row.assignment_id for row in group} != {cluster_id}:
+            if len({row.assignment_id for row in group}) != 1:
                 errors.append(f"{cluster_id} does not retain one shared assignment")
         elif group[0].review_decision == "rejected":
             rejected.append(group)
