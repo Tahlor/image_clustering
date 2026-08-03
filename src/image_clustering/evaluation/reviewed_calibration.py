@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from image_clustering.evaluation.reviewed_models import SCHEMA_VERSION, load_jsonl
 from image_clustering.evaluation.reviewed_predictions import apply_isotonic
