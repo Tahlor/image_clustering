@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "run_label": "current_master_local_disjoint_name_safety_20260804",
+  "scope": "diagnostic hard-negative subset; not the governed 422-image evaluation",
+  "source_original_images": 35,
+  "candidate_pairs": 77,
+  "registered_pairs": 22,
+  "registration_rate": 0.2857142857142857,
+  "deterministic_same_document_links": 0,
+  "review_threshold_same_occluded": 0.08,
+  "review_candidates": 0,
+  "maximum_same_occluded_probability": 0.0686134276138439,
+  "minimum_margin_below_review_threshold": 0.011386572386156105,
+  "maximum_case_id": "i4399011-00328__i4399023-00320",
+  "second_highest_same_occluded_probability": 0.0509482370000929,
+  "mean_registered_same_occluded_probability": 0.011382918375104035,
+  "notes": [
+    "Pairs were restricted to same broad form family/orientation with disjoint visible primary-person names.",
+    "This tests false-positive safety only and does not estimate reviewed-positive recall.",
+    "Both nearest-threshold pairs were visually inspected and are different records."
+  ]
+}
