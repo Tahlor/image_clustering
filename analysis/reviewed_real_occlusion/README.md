@@ -40,6 +40,41 @@ Complete the generated
 with `--subtypes` pointing to that completed sidecar. The source accepted/rejected
 labels are never modified.
 
+## Materialize from managed exact-key access
+
+The cache materializer remains the authoritative completeness and SHA gate. When
+File Library bytes are not already mounted, first generate exact broker requests
+from the authoritative assignments manifest:
+
+```bash
+export VERMONT_IMAGE_ACCESS_TOKEN='<temporary token>'
+python analysis/reviewed_real_occlusion/managed_download_urls.py \
+  --assignments-csv /path/to/MY_REVIEWED_GT_DATASET/assignments.csv \
+  --output-root /durable/MY_REVIEWED_GT_DATASET_materialized
+```
+
+The command performs no network requests. It validates that `source_project`,
+`sequence_id`, `image_id`, and `package_relative_path` agree, fixes the authorized
+endpoint and prefix, excludes already materialized destinations, and prints one
+JSON request per missing image for the platform-managed downloader. The token is
+read from the environment only. Never redirect token-bearing output to a file or
+include it in logs, receipts, issue comments, or commits.
+
+Download each printed exact URL to its stated `destination`, then run the strict
+cache materializer over the download root. The governed evaluation may start only
+when it reports `expected=422`, `materialized=422`, `missing=0`, and `collisions=0`:
+
+```bash
+python analysis/reviewed_real_occlusion/materialize_library_cache.py \
+  --assignments-csv /path/to/MY_REVIEWED_GT_DATASET/assignments.csv \
+  --scan-root /path/to/managed/downloads \
+  --output-root /durable/MY_REVIEWED_GT_DATASET_materialized \
+  --require-complete
+```
+
+The broker planner never lists the bucket, guesses an object key, writes remotely,
+or changes the reviewed population.
+
 ## Outputs
 
 The run writes the required integrity report, canonical group and pair manifests,
