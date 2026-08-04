@@ -19,6 +19,7 @@ from image_clustering.evaluation.reviewed_models import (
     expand_pairs,
     group_rows,
     load_csv_manifest,
+    sha256,
 )
 from image_clustering.evaluation.reviewed_split import make_grouped_splits
 from image_clustering.evaluation.reviewed_validate import (
@@ -72,13 +73,17 @@ def stage_review_images(
         source = _source_image(package_root, row.package_relative_path)
         if source is None:
             raise FileNotFoundError(row.package_relative_path)
+        source_hash = sha256(source)
         target = stage_root / row.original_cluster_id / Path(row.image_id).name
         if target in seen:
             raise ValueError(f"staging filename collision: {target}")
         seen.add(target)
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
-            if target.stat().st_size != source.stat().st_size:
+            if (
+                target.stat().st_size != source.stat().st_size
+                or sha256(target) != source_hash
+            ):
                 raise ValueError(f"staged file differs from source: {target}")
             mode = "existing"
         else:
@@ -92,6 +97,9 @@ def stage_review_images(
                 except OSError:
                     shutil.copy2(source, target)
                     mode = "copy"
+        target_hash = sha256(target)
+        if target_hash != source_hash:
+            raise ValueError(f"staged file hash differs from source: {target}")
         staged.append(
             {
                 "image_id": row.image_id,
@@ -104,6 +112,9 @@ def stage_review_images(
                 "source_path": str(source),
                 "staged_path": str(target),
                 "storage_mode": mode,
+                "byte_count": source.stat().st_size,
+                "source_sha256": source_hash,
+                "staged_sha256": target_hash,
             }
         )
     return staged
