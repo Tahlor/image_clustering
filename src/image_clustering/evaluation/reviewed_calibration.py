@@ -7,9 +7,16 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from image_clustering.evaluation.reviewed_models import SCHEMA_VERSION, load_jsonl
+from image_clustering.evaluation.reviewed_models import (
+    SCHEMA_VERSION,
+    load_jsonl,
+    parse_bool,
+)
 from image_clustering.evaluation.reviewed_predictions import apply_isotonic
 from image_clustering.evaluation.reviewed_prepare import load_subtypes
+from image_clustering.evaluation.reviewed_subtypes import (
+    validate_completed_subtypes,
+)
 
 
 def _pav_fit(points: Sequence[tuple[float, int]]) -> list[tuple[float, float]]:
@@ -59,16 +66,23 @@ def fit_real_calibration(
             for row in selection
         ]
     )
-    subtypes = load_subtypes(
-        subtype_path
-        or prepared_dir / "accepted_group_occlusion_subtypes.csv"
+    resolved_subtype_path = subtype_path or (
+        prepared_dir / "accepted_group_occlusion_subtypes.csv"
     )
+    subtype_validation = (
+        validate_completed_subtypes(prepared_dir, resolved_subtype_path)
+        if subtype_path is not None
+        else None
+    )
+    subtypes = load_subtypes(resolved_subtype_path)
     conditional = [
         row
         for row in selection
         if row["truth_same_document"]
-        and subtypes.get(row["original_cluster_id"], {}).get("occlusion_subtype")
-        in {"same_clean", "same_occluded", "mixed_or_multi_state"}
+        and row["original_cluster_id"] in subtypes
+        and subtypes[row["original_cluster_id"]].get(
+            "material_occlusion_metric_included"
+        )
     ]
     conditional_knots = (
         _pav_fit(
@@ -76,8 +90,11 @@ def fit_real_calibration(
                 (
                     float(row["occluded_given_same_probability"]),
                     int(
-                        subtypes[row["original_cluster_id"]]["occlusion_subtype"]
-                        in {"same_occluded", "mixed_or_multi_state"}
+                        parse_bool(
+                            subtypes[row["original_cluster_id"]][
+                                "material_occlusion_metric_included"
+                            ]
+                        )
                     ),
                 )
                 for row in conditional
@@ -98,6 +115,10 @@ def fit_real_calibration(
         "selection_pair_count": len(selection),
         "identity_isotonic_knots": identity_knots,
         "conditional_occlusion_isotonic_knots": conditional_knots,
+        "conditional_occlusion_truth": (
+            "material_occlusion_metric_included"
+        ),
+        "subtype_validation": subtype_validation,
         "graph_edge_policy": "unchanged; calibrated probabilities are review-only",
         "locked_audit_used_for_fit": False,
     }
