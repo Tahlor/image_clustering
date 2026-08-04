@@ -178,7 +178,15 @@ def prepare_dataset(
         for group in groups
         if group["review_decision"] == "accepted"
     ]
-    write_csv(output_dir / "accepted_group_occlusion_subtypes.csv", subtype_rows)
+    template_path = output_dir / "accepted_group_occlusion_subtypes_template.csv"
+    sidecar_path = output_dir / "accepted_group_occlusion_subtypes.csv"
+    write_csv(template_path, subtype_rows)
+    if sidecar_path.exists():
+        sidecar_status = "preserved_existing"
+    else:
+        write_csv(sidecar_path, subtype_rows)
+        sidecar_status = "created_from_template"
+
     summary = {
         "schema_version": SCHEMA_VERSION,
         "manifest_sha256": report["csv_sha256"],
@@ -189,6 +197,9 @@ def prepare_dataset(
         "staging_storage_modes": dict(
             Counter(row["storage_mode"] for row in staged_rows)
         ),
+        "subtype_sidecar_status": sidecar_status,
+        "subtype_template_path": str(template_path.resolve()),
+        "subtype_sidecar_path": str(sidecar_path.resolve()),
         "split_truth_counts": {
             split: dict(
                 Counter(
