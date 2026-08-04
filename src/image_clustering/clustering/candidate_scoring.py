@@ -15,7 +15,7 @@ from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
 
-_MODEL_VERSION = "vermont-synthetic-logit-v2-localized-occlusion-gate"
+_MODEL_VERSION = "vermont-synthetic-logit-v3-full-page-text-gate"
 
 _FEATURE_NAMES = (
     "registration_fallback",
@@ -137,6 +137,27 @@ def _ramp(value: float, floor: float, full: float) -> float:
     return float(max(0.0, min(1.0, (value - floor) / (full - floor))))
 
 
+def _full_page_text_replacement(
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> bool:
+    page_support = (
+        content.occlusion_area_fraction
+        * max(content.page_count, 1)
+        / max(content.occlusion_candidate_count, 1)
+    )
+    return (
+        content.full_page_occlusion_count > 0
+        and page_support >= 0.75
+        and content.ink_mismatch_tiles_fraction
+        >= config.occlusion_full_page_text_min_ink_mismatch_tiles_fraction
+        and content.occlusion_material_median
+        < config.occlusion_full_page_text_max_material_median
+        and content.inside_unmatched_ink_union_fraction
+        < config.occlusion_full_page_text_max_inside_unmatched_ink_union_fraction
+    )
+
+
 def _occlusion_evidence(
     content: ContentMetrics,
     config: ClusterConfig,
@@ -243,7 +264,12 @@ def _occlusion_evidence(
         < config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
         and content.occlusion_material_median < 0.006
     )
-    if distributed_replacement or weak_localization or thin_text_only:
+    if (
+        distributed_replacement
+        or weak_localization
+        or thin_text_only
+        or _full_page_text_replacement(content, config)
+    ):
         evidence *= config.occlusion_evidence_distributed_penalty
     return float(max(0.0, min(1.0, evidence)))
 

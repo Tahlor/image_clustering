@@ -48,6 +48,14 @@ class ClusterConfig(_ClusterConfig):
     occlusion_evidence_distributed_outside_tiles_fraction: float = 0.55
     occlusion_evidence_distributed_penalty: float = 0.05
 
+    # At reduced working resolutions, distributed handwriting replacement can
+    # satisfy the broad material-change shortcut and make both pages look fully
+    # occluded. A real full-page sheet must either replace the text channel more
+    # decisively or produce stronger smooth material contrast.
+    occlusion_full_page_text_min_ink_mismatch_tiles_fraction: float = 0.55
+    occlusion_full_page_text_max_material_median: float = 0.04
+    occlusion_full_page_text_max_inside_unmatched_ink_union_fraction: float = 0.45
+
     # Extreme material changes may hide most content. When the remaining exterior
     # is dirty, require stronger identity support before creating an automatic edge.
     occlusion_dirty_exterior_min_feature_overlap: float = 0.15
@@ -84,6 +92,9 @@ class ClusterConfig(_ClusterConfig):
             "occlusion_evidence_distributed_outside_union_fraction",
             "occlusion_evidence_distributed_outside_tiles_fraction",
             "occlusion_evidence_distributed_penalty",
+            "occlusion_full_page_text_min_ink_mismatch_tiles_fraction",
+            "occlusion_full_page_text_max_material_median",
+            "occlusion_full_page_text_max_inside_unmatched_ink_union_fraction",
             "occlusion_dirty_exterior_min_feature_overlap",
             "occlusion_dirty_exterior_min_alignment_score",
             "occlusion_dirty_exterior_min_unmatched_ink_union_fraction",
