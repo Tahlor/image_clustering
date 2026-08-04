@@ -50,11 +50,11 @@ class ClusterConfig(_ClusterConfig):
 
     # At reduced working resolutions, distributed handwriting replacement can
     # satisfy the broad material-change shortcut and make both pages look fully
-    # occluded. A real full-page sheet must either replace the text channel more
-    # decisively or produce stronger smooth material contrast.
+    # occluded. A page-wide state escapes this veto only with clearly stronger
+    # smooth material contrast or denser inside text replacement.
     occlusion_full_page_text_min_ink_mismatch_tiles_fraction: float = 0.55
-    occlusion_full_page_text_max_material_median: float = 0.04
-    occlusion_full_page_text_max_inside_unmatched_ink_union_fraction: float = 0.45
+    occlusion_full_page_text_max_material_median: float = 0.08
+    occlusion_full_page_text_max_inside_unmatched_ink_union_fraction: float = 0.60
 
     # Extreme material changes may hide most content. When the remaining exterior
     # is dirty, require stronger identity support before creating an automatic edge.
