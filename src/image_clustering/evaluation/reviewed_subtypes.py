@@ -365,7 +365,8 @@ def validate_completed_subtypes(
                 )
             if occluded or occluded_ids:
                 raise ValueError(
-                    f"Non-material row must not identify occluded images: {cluster_id}"
+                    "Non-material row must not identify occluded images: "
+                    f"{cluster_id}"
                 )
 
         _validate_primary_image(
