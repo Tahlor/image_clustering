@@ -13,6 +13,8 @@ Candidate = dict[
     float | int | tuple[int, int, int, int] | np.ndarray,
 ]
 
+_DENSE_INK_MIN_CAPTURE_GAIN = 0.20
+
 
 def _runs_with_small_gaps(mask: np.ndarray, maximum_gap: int) -> list[tuple[int, int]]:
     """Return true runs after filling only very small internal gaps."""
@@ -45,14 +47,12 @@ def _dense_ink_candidate(
     aligned: np.ndarray,
     config: ClusterConfig,
 ) -> Candidate | None:
-    """Infer a sheet-shaped text-erasure block when grayscale residuals fragment.
+    """Infer a sheet-shaped block from dense contiguous text erasure.
 
-    This is deliberately a fallback, not a second automatic acceptance path. It
-    requires a dense contiguous band in both row and column projections. Only after
-    that evidence is established is the interior rectangle filled as candidate
-    support. The final scorer still requires block replacement, mismatch capture,
-    registration support, and clean exterior agreement; distributed record text is
-    rejected by those later gates.
+    A near-background sheet can erase print and handwriting while producing only a
+    fragmented grayscale residual. This candidate requires a dense contiguous band
+    in both row and column projections. The final scorer still requires block
+    replacement, mismatch capture, registration support, and exterior agreement.
     """
     columns = list(page_columns)
     page_ink = ink_tile_mismatch[:, columns] & page_valid[:, columns]
@@ -150,6 +150,54 @@ def _dense_ink_candidate(
     return candidates[0][1]
 
 
+def _candidate_ink_capture(
+    candidate: Candidate,
+    ink_tile_mismatch: np.ndarray,
+    page_valid: np.ndarray,
+) -> float:
+    """Return the page's text mismatch captured by one candidate support."""
+    page_mismatch = ink_tile_mismatch & page_valid
+    total_mismatch = int(page_mismatch.sum())
+    if total_mismatch == 0:
+        return 0.0
+    support = candidate["support"]
+    assert isinstance(support, np.ndarray)
+    return float((page_mismatch & support & page_valid).sum() / total_mismatch)
+
+
+def _select_competing_candidate(
+    residual_candidate: Candidate | None,
+    dense_ink_candidate: Candidate | None,
+    ink_tile_mismatch: np.ndarray,
+    page_valid: np.ndarray,
+) -> Candidate | None:
+    """Prefer dense text evidence only when it explains substantially more change.
+
+    Residual structure remains the default because it carries direct material-change
+    evidence. A dense text block replaces it only when it captures at least twenty
+    percentage points more of the page's unmatched text. This recovers low-contrast
+    overlays without allowing a slightly larger handwriting rectangle to displace a
+    coherent physical residual.
+    """
+    if residual_candidate is None:
+        return dense_ink_candidate
+    if dense_ink_candidate is None:
+        return residual_candidate
+    residual_capture = _candidate_ink_capture(
+        residual_candidate,
+        ink_tile_mismatch,
+        page_valid,
+    )
+    dense_capture = _candidate_ink_capture(
+        dense_ink_candidate,
+        ink_tile_mismatch,
+        page_valid,
+    )
+    if dense_capture >= residual_capture + _DENSE_INK_MIN_CAPTURE_GAIN:
+        return dense_ink_candidate
+    return residual_candidate
+
+
 def _component_candidates(
     scores: np.ndarray,
     changed: np.ndarray,
@@ -162,7 +210,7 @@ def _component_candidates(
     aligned: np.ndarray,
     config: ClusterConfig,
 ) -> list[Candidate]:
-    """Return the strongest contiguous residual region for one detected page."""
+    """Return the best localized physical-occlusion candidate for one page."""
     page_mask = np.zeros_like(changed)
     page_mask[:, page_columns] = True
     page_valid = valid_tiles & page_mask
@@ -170,7 +218,7 @@ def _component_candidates(
         return []
     page_changed = changed & page_mask
     page_changed_fraction = float(page_changed.sum() / max(page_valid.sum(), 1))
-    candidates: list[Candidate] = []
+    residual_candidates: list[Candidate] = []
     px0, py0, px1, py1 = page_bbox
     material_sigma = max(3.0, min(reference.shape) / 120.0)
     page_material = np.abs(
@@ -198,7 +246,7 @@ def _component_candidates(
         and page_changed_fraction
         >= config.occlusion_full_page_strong_material_min_changed_fraction
     ):
-        return [
+        residual_candidates.append(
             {
                 "bbox": page_bbox,
                 "support": page_valid.copy(),
@@ -206,84 +254,82 @@ def _component_candidates(
                 "boundary": 0.0,
                 "full_page": 1,
             }
-        ]
+        )
+    else:
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(
+            page_changed.astype(np.uint8),
+            connectivity=8,
+        )
+        rows, columns = changed.shape
+        page_width = px1 - px0
+        page_height = py1 - py0
+        for label in range(1, count):
+            area = int(stats[label, cv2.CC_STAT_AREA])
+            if area < config.occlusion_min_component_tiles:
+                continue
+            support = (labels == label) & page_valid
+            coordinates = list(zip(*np.where(support), strict=True))
+            boxes = [
+                _tile_bounds(row, column, shape, rows, columns)
+                for row, column in coordinates
+            ]
+            raw_bbox = (
+                min(box[0] for box in boxes),
+                min(box[1] for box in boxes),
+                max(box[2] for box in boxes),
+                max(box[3] for box in boxes),
+            )
+            raw_width = raw_bbox[2] - raw_bbox[0]
+            raw_height = raw_bbox[3] - raw_bbox[1]
+            raw_area_fraction = raw_width * raw_height / max(
+                page_width * page_height,
+                1,
+            )
+            if raw_area_fraction < config.occlusion_min_page_area_fraction:
+                continue
+            padding_x = round(config.occlusion_padding_x_fraction * page_width)
+            padding_y = round(config.occlusion_padding_y_fraction * page_height)
+            bbox = (
+                max(px0, raw_bbox[0] - padding_x),
+                max(py0, raw_bbox[1] - padding_y),
+                min(px1, raw_bbox[2] + padding_x),
+                min(py1, raw_bbox[3] + padding_y),
+            )
+            tile_bbox_area = max(
+                int(stats[label, cv2.CC_STAT_WIDTH])
+                * int(stats[label, cv2.CC_STAT_HEIGHT]),
+                1,
+            )
+            boundary = max(
+                _boundary_score(reference, raw_bbox),
+                _boundary_score(aligned, raw_bbox),
+                _boundary_score(reference, bbox),
+                _boundary_score(aligned, bbox),
+            )
+            residual_candidates.append(
+                {
+                    "bbox": bbox,
+                    "support": support,
+                    "rectangularity": area / tile_bbox_area,
+                    "boundary": boundary,
+                    "full_page": 0,
+                    "residual_score": float(
+                        np.maximum(
+                            scores - np.nanmedian(scores[valid_tiles]),
+                            0.0,
+                        )[support].sum()
+                    ),
+                }
+            )
+        residual_candidates.sort(
+            key=lambda candidate: float(candidate.get("residual_score", 0.0)),
+            reverse=True,
+        )
 
-    count, labels, stats, _ = cv2.connectedComponentsWithStats(
-        page_changed.astype(np.uint8),
-        connectivity=8,
+    residual_candidate = (
+        residual_candidates[0] if residual_candidates else None
     )
-    rows, columns = changed.shape
-    page_width = px1 - px0
-    page_height = py1 - py0
-    for label in range(1, count):
-        area = int(stats[label, cv2.CC_STAT_AREA])
-        if area < config.occlusion_min_component_tiles:
-            continue
-        support = (labels == label) & page_valid
-        coordinates = list(zip(*np.where(support), strict=True))
-        boxes = [
-            _tile_bounds(row, column, shape, rows, columns)
-            for row, column in coordinates
-        ]
-        # Use the full connected component for geometry. Quantile trimming
-        # silently removed the ends of genuine skewed/warped overlays and made
-        # large occlusions look too small, while the final scorer already has
-        # strict support-density and exterior-agreement gates.
-        raw_bbox = (
-            min(box[0] for box in boxes),
-            min(box[1] for box in boxes),
-            max(box[2] for box in boxes),
-            max(box[3] for box in boxes),
-        )
-        raw_width = raw_bbox[2] - raw_bbox[0]
-        raw_height = raw_bbox[3] - raw_bbox[1]
-        raw_area_fraction = raw_width * raw_height / max(page_width * page_height, 1)
-        if raw_area_fraction < config.occlusion_min_page_area_fraction:
-            continue
-        padding_x = round(config.occlusion_padding_x_fraction * page_width)
-        padding_y = round(config.occlusion_padding_y_fraction * page_height)
-        bbox = (
-            max(px0, raw_bbox[0] - padding_x),
-            max(py0, raw_bbox[1] - padding_y),
-            min(px1, raw_bbox[2] + padding_x),
-            min(py1, raw_bbox[3] + padding_y),
-        )
-        tile_bbox_area = max(
-            int(stats[label, cv2.CC_STAT_WIDTH])
-            * int(stats[label, cv2.CC_STAT_HEIGHT]),
-            1,
-        )
-        boundary = max(
-            _boundary_score(reference, raw_bbox),
-            _boundary_score(aligned, raw_bbox),
-            _boundary_score(reference, bbox),
-            _boundary_score(aligned, bbox),
-        )
-        candidates.append(
-            {
-                "bbox": bbox,
-                # Keep the connected support. The old implementation replaced
-                # it with every tile in the padded bbox, which let sparse text
-                # changes swallow clean form structure and masquerade as a
-                # rectangular sheet.
-                "support": support,
-                "rectangularity": area / tile_bbox_area,
-                "boundary": boundary,
-                "full_page": 0,
-            }
-        )
-    candidates.sort(
-        key=lambda candidate: float(
-            np.maximum(scores - np.nanmedian(scores[valid_tiles]), 0.0)[
-                candidate["support"]
-            ].sum()
-        ),
-        reverse=True,
-    )
-    if candidates:
-        return candidates[:1]
-
-    ink_candidate = _dense_ink_candidate(
+    dense_candidate = _dense_ink_candidate(
         ink_tile_mismatch=ink_tile_mismatch,
         page_valid=page_valid,
         page_columns=page_columns,
@@ -293,4 +339,10 @@ def _component_candidates(
         aligned=aligned,
         config=config,
     )
-    return [ink_candidate] if ink_candidate is not None else []
+    selected = _select_competing_candidate(
+        residual_candidate,
+        dense_candidate,
+        ink_tile_mismatch,
+        page_valid,
+    )
+    return [selected] if selected is not None else []
