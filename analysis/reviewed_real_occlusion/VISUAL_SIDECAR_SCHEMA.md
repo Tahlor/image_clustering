@@ -19,7 +19,7 @@ Large foreground numbers, stamps, seals, cards, and labels are represented by
 `visual_only_overlay` and a non-`none` `visual_overlay_category`. They must use
 `material_occlusion_metric_included=false` unless the original physical source
 content is meaningfully hidden by a real material relationship independently of
-the visual overlay.
+the visual overlay. A non-material row cannot use the `same_occluded` subtype.
 
 ## Required fields
 
@@ -31,9 +31,9 @@ Each row records:
 - `visual_relationship_category`
 - `visual_overlay_category`
 - `material_occlusion_metric_included`
-- `affected_image_id`
-- `occluded_image_id`
-- `better_view_image_id`
+- `affected_image_id` and `affected_image_ids_json`
+- `occluded_image_id` and `occluded_image_ids_json`
+- `better_view_image_id` and `better_view_image_ids_json`
 - `meaningful_hidden_content_risk`
 - `occlusion_size_category`
 - `registration_difficulty`
@@ -41,10 +41,23 @@ Each row records:
 - `uncertainty_notes`
 - `annotator_method`
 
-A material-occlusion row must identify affected, occluded, and better-view images,
-use a non-`none` hidden-content risk and size, and use a compatible subtype and
-relationship category. Visual-only overlays cannot enter the material-occlusion
-metric.
+The singular image fields identify the primary example for convenient reporting.
+The JSON list fields enumerate every affected, occluded, and better-view image in
+a multi-image accepted group, in authoritative member order.
+
+A material-occlusion row must identify non-empty affected, occluded, and
+better-view image lists, use a non-`none` hidden-content risk and size, and use a
+compatible subtype and relationship category. Occluded images must be a subset of
+affected images and cannot also be better views. Visual-only overlays cannot enter
+the material-occlusion metric.
+
+## Preparation and preservation
+
+`prepare_dataset` always writes a fresh
+`accepted_group_occlusion_subtypes_template.csv`. It creates
+`accepted_group_occlusion_subtypes.csv` only when that working sidecar does not
+already exist. Rerunning preparation therefore refreshes the authority-derived
+template without overwriting completed human evidence.
 
 ## Validation
 
@@ -58,7 +71,8 @@ image-reviewed-eval validate-subtypes \
 
 Validation fails closed for duplicate rows, missing or extra accepted groups,
 member-image disagreement, unresolved categories, nonmember image references,
-contradictory overlay/material fields, or incomplete evidence.
+contradictory overlay/material fields, incomplete multi-image lists, or missing
+evidence.
 
 The conditional probability calibrator uses
 `material_occlusion_metric_included` as the truth for
