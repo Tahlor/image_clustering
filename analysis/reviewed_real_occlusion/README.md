@@ -52,9 +52,11 @@ freezing calibration. The source accepted/rejected labels are never modified.
 ### 2. Selection-only calibration and freeze
 
 This phase requires the completed subtype sidecar and the exact 40-character code
-commit. It fits from selection rows in the baseline pair-results file, evaluates
-only development and selection, and writes `frozen_system_receipt.json` with the
-input hashes and configuration fingerprint.
+commit. The package root must also contain `completeness_receipt.json` and
+`SHA256SUMS.tsv`. It fits from selection rows in the baseline pair-results file,
+evaluates only development and selection, and writes `frozen_system_receipt.json`
+with the source ledger, manifests, prepared split, predictions, calibration, and
+configuration hashes.
 
 ```bash
 python analysis/reviewed_real_occlusion/run_pipeline.py \
@@ -71,9 +73,10 @@ python analysis/reviewed_real_occlusion/run_pipeline.py \
 ### 3. Frozen locked audit
 
 The audit phase verifies every frozen hash and the exact code commit before it
-runs. It refuses to proceed if calibration, configuration, manifests, subtype
-evidence, or baseline predictions changed. It writes a terminal execution receipt
-and refuses a silent second audit run after that receipt exists.
+runs. It refuses to proceed if source bytes, calibration, configuration, manifests,
+subtype evidence, split assignment, or baseline predictions changed. It writes a
+`locked_audit_started_receipt.json` before evaluating the audit and refuses any
+silent rerun after either the start or terminal execution receipt exists.
 
 ```bash
 python analysis/reviewed_real_occlusion/run_pipeline.py \
