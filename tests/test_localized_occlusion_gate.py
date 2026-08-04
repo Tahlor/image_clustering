@@ -120,6 +120,89 @@ def test_localized_block_preserves_high_occlusion_probability() -> None:
     assert probabilities.automatic_link_eligible
 
 
+def test_reduced_scale_full_page_text_replacement_is_rejected() -> None:
+    config = ClusterConfig()
+    content = _content(
+        unmatched_ink_union_fraction=0.341,
+        ink_mismatch_tiles_fraction=0.735,
+        residual_tiles_changed_fraction=0.219,
+        occlusion_candidate_count=2,
+        occlusion_area_fraction=0.998,
+        occlusion_residual_capture=1.0,
+        occlusion_rectangularity=1.0,
+        occlusion_material_fraction=0.40,
+        occlusion_material_median=0.0268,
+        outside_unmatched_ink_union_fraction=0.994,
+        outside_ink_mismatch_tiles_fraction=0.0,
+        full_page_occlusion_count=2,
+        page_count=2,
+        inside_unmatched_ink_union_fraction=0.337,
+        occlusion_ink_mismatch_capture=0.982,
+        occlusion_localization_contrast=0.0,
+    )
+    probabilities = pair_probabilities(
+        registration=_registration(),
+        change={"valid_fraction": 0.96, "changed_fraction": 0.75},
+        content=content,
+        accepted=False,
+        hard_contradiction=True,
+        candidate_threshold=0.08,
+        config=config,
+    )
+    accepted, branch, reason = _decision(
+        registration=_registration(),
+        change={"valid_fraction": 0.96, "changed_fraction": 0.75},
+        content=content,
+        config=config,
+    )
+
+    assert probabilities.occlusion_evidence < 0.05
+    assert not accepted
+    assert branch is None
+    assert "page-wide" in reason
+
+
+def test_true_full_page_material_sheet_survives_text_replacement_gate() -> None:
+    config = ClusterConfig()
+    content = _content(
+        unmatched_ink_union_fraction=0.321,
+        ink_mismatch_tiles_fraction=0.438,
+        residual_tiles_changed_fraction=0.623,
+        occlusion_candidate_count=2,
+        occlusion_area_fraction=1.0,
+        occlusion_residual_capture=1.0,
+        occlusion_rectangularity=1.0,
+        occlusion_material_fraction=0.72,
+        occlusion_material_median=0.0574,
+        outside_unmatched_ink_union_fraction=0.0,
+        outside_ink_mismatch_tiles_fraction=0.0,
+        full_page_occlusion_count=2,
+        page_count=2,
+        inside_unmatched_ink_union_fraction=0.321,
+        occlusion_ink_mismatch_capture=1.0,
+        occlusion_localization_contrast=0.321,
+    )
+    probabilities = pair_probabilities(
+        registration=_registration(),
+        change={"valid_fraction": 0.96, "changed_fraction": 0.62},
+        content=content,
+        accepted=True,
+        hard_contradiction=False,
+        candidate_threshold=0.08,
+        config=config,
+    )
+    accepted, branch, _ = _decision(
+        registration=_registration(),
+        change={"valid_fraction": 0.96, "changed_fraction": 0.62},
+        content=content,
+        config=config,
+    )
+
+    assert probabilities.occlusion_evidence > 0.80
+    assert accepted
+    assert branch == "physical_occlusion"
+
+
 def _form(record: str) -> np.ndarray:
     image = np.full((600, 420), 238, dtype=np.uint8)
     cv2.rectangle(image, (20, 20), (400, 580), 40, 2)
