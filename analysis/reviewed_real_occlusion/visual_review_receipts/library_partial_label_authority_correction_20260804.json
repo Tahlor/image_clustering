@@ -1,0 +1,66 @@
+{
+  "schema": "reviewed_real_visual_label_authority_correction_v1",
+  "generated_at": "2026-08-04",
+  "scope": {
+    "authoritative_accepted_groups": 134,
+    "authoritative_accepted_images": 282,
+    "authoritative_rejected_groups": 66,
+    "authoritative_rejected_images": 140
+  },
+  "source_artifacts": {
+    "assignments_authority": "/Vermont Naturalization/Images/Occlusion Review/MY_REVIEWED_GT_DATASET/assignments.jsonl",
+    "partial_visual_labels": "/Vermont Naturalization/Images/Occlusion Review/MY_REVIEWED_GT_DATASET/approved_cluster_visual_labels_partial.csv",
+    "superseded_progress_receipt": "/Vermont Naturalization/Images/Occlusion Review/MY_REVIEWED_GT_DATASET/APPROVED_CLUSTER_VISUAL_REVIEW_PROGRESS.md"
+  },
+  "findings": {
+    "actual_jpeg_cards_visible_multimodally": true,
+    "sampled_from_separated_upload_positions": [
+      "i4071661-00268.jpg",
+      "i4071653-00392.jpg",
+      "63129_2327225e_0025-00646.jpg"
+    ],
+    "card_open_exported_bytes_to_mounted_filesystem": false,
+    "partial_label_rows_claimed": 9,
+    "partial_label_rows_proven_out_of_scope": 2,
+    "remaining_partial_rows_requiring_exact_assignment_join": 7
+  },
+  "invalid_partial_rows": [
+    {
+      "partial_row_id": "library_approved_group_346_12_14",
+      "image_basenames": [
+        "63129_2327225e_0025-00780.jpg",
+        "63129_2327225e_0025-00781.jpg",
+        "63129_2327225e_0025-00782.jpg"
+      ],
+      "authoritative_original_cluster_id": "cluster_62693",
+      "authoritative_status": "rejected_dissolved",
+      "reason": "all three images are rejected_singleton assignments and are outside the 134 accepted-group review"
+    },
+    {
+      "partial_row_id": "library_approved_group_346_15_17",
+      "image_basenames": [
+        "63129_2327225e_0025-01478.jpg",
+        "63129_2327225e_0025-01479.jpg"
+      ],
+      "authoritative_original_cluster_id": "cluster_63389",
+      "authoritative_status": "rejected_dissolved",
+      "reason": "both images are rejected_singleton assignments and are outside the 134 accepted-group review"
+    }
+  ],
+  "additional_upload_stream_control": {
+    "image_basenames": [
+      "63129_2327225e_0025-00645.jpg",
+      "63129_2327225e_0025-00646.jpg"
+    ],
+    "authoritative_original_cluster_id": "cluster_62562",
+    "authoritative_status": "rejected_dissolved",
+    "meaning": "recent Library JPEG uploads mix accepted and rejected cards; upload order is not label authority"
+  },
+  "corrected_policy": [
+    "Do not count a visual row unless its exact image set resolves to one assignments.jsonl cluster with review_decision=accepted, cluster_status=approved, and assignment_type=accepted_cluster.",
+    "Exclude the two invalid rows above from every approved-group total and subtype metric.",
+    "Treat the prior nine-group progress receipt as superseded until all remaining rows pass the exact assignment join.",
+    "Continue visual review only from assignments-derived accepted image sets, not recent-upload order or filename adjacency."
+  ],
+  "performance_claim": "none; this is an authority correction, not a detector evaluation"
+}
