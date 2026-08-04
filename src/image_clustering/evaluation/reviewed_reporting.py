@@ -22,30 +22,30 @@ from image_clustering.evaluation.reviewed_validate import write_csv, write_jsonl
 
 
 def _state_calibration(pair_rows: list[dict[str, Any]]) -> dict[str, Any]:
-    state_rows = [
+    annotated_positive = [
         row
         for row in pair_rows
-        if row["derived_occlusion_subtype"]
-        in {"same_clean", "same_occluded", "mixed_or_multi_state", "different_document"}
+        if row["truth_same_document"]
+        and row["derived_material_occlusion_metric_included"] is not None
     ]
+    negative = [row for row in pair_rows if not row["truth_same_document"]]
+    state_rows = annotated_positive + negative
     for row in state_rows:
-        row["truth_same_clean"] = int(
-            row["derived_occlusion_subtype"] == "same_clean"
-        )
+        material = row["derived_material_occlusion_metric_included"] is True
+        row["truth_same_clean"] = int(row["truth_same_document"] and not material)
         row["truth_same_occluded"] = int(
-            row["derived_occlusion_subtype"]
-            in {"same_occluded", "mixed_or_multi_state"}
+            row["truth_same_document"] and material
         )
         row["truth_different_document"] = int(
             not row["truth_same_document"]
         )
     by_size = {}
     for category in sorted(
-        {row["derived_occlusion_size_category"] for row in state_rows}
+        {row["derived_occlusion_size_category"] for row in annotated_positive}
     ):
         rows = [
             row
-            for row in state_rows
+            for row in annotated_positive
             if row["derived_occlusion_size_category"] == category
         ]
         by_size[category] = binary_probability_metrics(
@@ -89,12 +89,19 @@ def calculate_metrics(
     rejected = [row for row in group_rows if row["review_decision"] == "rejected"]
     contaminated = [row for row in rejected if row["group_status"] == "contaminated"]
     same_clean = [
-        row for row in positive if row["derived_occlusion_subtype"] == "same_clean"
+        row
+        for row in positive
+        if row["derived_material_occlusion_metric_included"] is False
     ]
     same_occluded = [
         row
         for row in positive
-        if row["derived_occlusion_subtype"] in {"same_occluded", "mixed_or_multi_state"}
+        if row["derived_material_occlusion_metric_included"] is True
+    ]
+    unannotated_positive = [
+        row
+        for row in positive
+        if row["derived_material_occlusion_metric_included"] is None
     ]
     candidate_tp = sum(bool(row["candidate_flag"]) for row in positive)
     candidate_fp = sum(bool(row["candidate_flag"]) for row in negative)
@@ -158,6 +165,16 @@ def calculate_metrics(
                     if row["cluster_size"] > 2
                 ),
                 sum(row["cluster_size"] > 2 for row in accepted),
+            ),
+            "material_occlusion_metric_group_count": sum(
+                row["derived_material_occlusion_metric_included"] is True
+                for row in accepted
+            ),
+            "visual_overlay_excluded_group_count": sum(
+                row["derived_visual_relationship_category"]
+                == "visual_only_overlay"
+                and row["derived_material_occlusion_metric_included"] is False
+                for row in accepted
             ),
         },
         "pair_metrics": {
@@ -243,10 +260,10 @@ def calculate_metrics(
         },
         "limitations": (
             [
-                "same-clean and same-occluded calibration require completed "
-                "accepted-group subtype annotations"
+                "same-clean and meaningful-occlusion calibration require the "
+                "completed accepted-group visual evidence sidecar"
             ]
-            if not same_clean or not same_occluded
+            if unannotated_positive
             else []
         ),
     }
