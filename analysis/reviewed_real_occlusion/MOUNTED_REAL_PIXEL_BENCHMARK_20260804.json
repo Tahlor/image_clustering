@@ -1,0 +1,36 @@
+{
+  "schema": "vermont_mounted_real_pixel_occlusion_benchmark_v1",
+  "date": "2026-08-04",
+  "scope": {
+    "same_template_different_record_pairs": 21,
+    "material_sheet_occlusions_on_real_scans": 28,
+    "clean_same_document_perturbations": 14,
+    "large_number_nonsemantic_overlays": 7,
+    "extended_different_record_pairs": 86
+  },
+  "primary_results": {
+    "material_occlusion_deterministic_detected": "28/28",
+    "material_occlusion_review_flagged": "28/28",
+    "same_template_false_automatic_links": "0/21",
+    "same_template_false_review_flags": "0/21",
+    "clean_repeats_retained": "14/14",
+    "clean_repeat_occlusion_flags": "0/14",
+    "large_number_physical_occlusion_flags": "0/7"
+  },
+  "extended_results": {
+    "automatic_links_after_localization_contrast_gate": "0/86",
+    "occlusion_review_flags": "0/86",
+    "evaluation_note": "The final localization decision was replayed over saved corrected pixel metrics."
+  },
+  "validation": {
+    "focused_generic_tests_passed": 5,
+    "imports_and_compilation_passed": true,
+    "ruff_run": false,
+    "github_actions_run": false
+  },
+  "limitations": [
+    "The complete governed 422-image selection and locked-audit run is not complete.",
+    "The separate 500-image safety stress is not complete.",
+    "Private case-level artifacts remain outside Git."
+  ]
+}

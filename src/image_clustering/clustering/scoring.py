@@ -15,6 +15,7 @@ from image_clustering.clustering.content import (
     analyze_content,
     local_dissimilarity,
 )
+from image_clustering.clustering.content_geometry import _tile_bounds
 from image_clustering.clustering.models import (
     ImageFeatures,
     PairComparison,
@@ -97,23 +98,107 @@ def _automatic_link_safety_reason(
     return None
 
 
+def _fit_exposure(values: np.ndarray, targets: np.ndarray) -> tuple[float, float]:
+    """Return a bounded robust linear map from aligned to reference intensity."""
+    variance = float(np.var(values))
+    covariance = float(np.cov(values, targets, bias=True)[0, 1])
+    scale = float(np.clip(covariance / max(variance, 1e-6), 0.75, 1.35))
+    offset = float(np.median(targets - scale * values))
+    return scale, offset
+
+
 def _normalize_brightness(
     reference: np.ndarray,
     aligned: np.ndarray,
     valid_mask: np.ndarray,
+    config: ClusterConfig | None = None,
 ) -> np.ndarray:
+    """Normalize exposure from stable textured regions, not the possible occluder.
+
+    A large dark or light sheet can dominate whole-image median/MAD statistics and
+    manufacture disagreement in the truly unchanged exterior. We first locate the
+    lowest-residual tiles after an additive centering pass, then fit a bounded robust
+    linear exposure map using only textured, non-saturated pixels in those tiles.
+    """
+    config = config or ClusterConfig()
     core = cv2.erode(valid_mask, np.ones((9, 9), np.uint8)) > 0
     if int(core.sum()) < 1000:
         return aligned
-    reference_values = reference[core].astype(np.float32)
-    aligned_values = aligned[core].astype(np.float32)
-    reference_median = float(np.median(reference_values))
-    aligned_median = float(np.median(aligned_values))
-    reference_mad = float(np.median(np.abs(reference_values - reference_median)))
-    aligned_mad = float(np.median(np.abs(aligned_values - aligned_median)))
-    scale = float(np.clip(reference_mad / max(aligned_mad, 1.0), 0.75, 1.35))
-    normalized = aligned.astype(np.float32) * scale
-    normalized += reference_median - scale * aligned_median
+
+    reference_float = reference.astype(np.float32)
+    aligned_float = aligned.astype(np.float32)
+    additive_offset = float(np.median((reference_float - aligned_float)[core]))
+    centered = np.clip(aligned_float + additive_offset, 0, 255)
+    residual = np.abs(reference_float - centered)
+
+    rows = max(4, config.tile_rows * 2)
+    columns = max(4, config.tile_columns * 2)
+    tile_scores: list[tuple[float, int, int]] = []
+    for row in range(rows):
+        for column in range(columns):
+            x0, y0, x1, y1 = _tile_bounds(
+                row,
+                column,
+                reference.shape,
+                rows,
+                columns,
+            )
+            tile_core = core[y0:y1, x0:x1]
+            if tile_core.mean() < 0.70:
+                continue
+            score = float(np.median(residual[y0:y1, x0:x1][tile_core]))
+            tile_scores.append((score, row, column))
+    if not tile_scores:
+        return centered.astype(np.uint8)
+
+    tile_scores.sort()
+    stable_count = max(
+        8,
+        round(config.residual_stable_fraction * len(tile_scores)),
+    )
+    stable = np.zeros_like(core)
+    for _, row, column in tile_scores[:stable_count]:
+        x0, y0, x1, y1 = _tile_bounds(
+            row,
+            column,
+            reference.shape,
+            rows,
+            columns,
+        )
+        stable[y0:y1, x0:x1] = True
+    stable &= core
+
+    gradient_x = cv2.Scharr(reference, cv2.CV_32F, 1, 0)
+    gradient_y = cv2.Scharr(reference, cv2.CV_32F, 0, 1)
+    texture = cv2.magnitude(gradient_x, gradient_y)
+    if int(stable.sum()) < 1000:
+        return centered.astype(np.uint8)
+    texture_floor = float(np.percentile(texture[stable], 55))
+    textured = (
+        stable
+        & (texture >= texture_floor)
+        & (reference > 15)
+        & (reference < 248)
+        & (aligned > 15)
+        & (aligned < 248)
+    )
+    if int(textured.sum()) < 1000:
+        return centered.astype(np.uint8)
+
+    values = aligned[textured].astype(np.float64)
+    targets = reference[textured].astype(np.float64)
+    if values.size > 100_000:
+        stride = max(1, values.size // 100_000)
+        values = values[::stride]
+        targets = targets[::stride]
+
+    scale, offset = _fit_exposure(values, targets)
+    fit_residual = np.abs(targets - (scale * values + offset))
+    keep = fit_residual <= np.quantile(fit_residual, 0.80)
+    if int(keep.sum()) >= 500:
+        scale, offset = _fit_exposure(values[keep], targets[keep])
+
+    normalized = aligned_float * scale + offset
     return np.clip(normalized, 0, 255).astype(np.uint8)
 
 
@@ -205,6 +290,7 @@ def score_pair(
         reference=previous.gray,
         aligned=aligned,
         valid_mask=valid_mask,
+        config=config,
     )
     change = _change_metrics(
         reference=previous.gray,
@@ -242,8 +328,6 @@ def score_pair(
         if safety_reason is None
         else f"review-only deterministic match: {safety_reason}"
     )
-    # A safety demotion should not fabricate a content contradiction. The review
-    # layer separately recomputes raw contradiction evidence for accepted conflicts.
     contradiction = _hard_contradiction(
         accepted=deterministic_accepted,
         content=content,

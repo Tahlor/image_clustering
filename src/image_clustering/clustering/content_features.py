@@ -9,9 +9,15 @@ from image_clustering.clustering.config import ClusterConfig
 
 
 def local_dissimilarity(reference: np.ndarray, aligned: np.ndarray) -> np.ndarray:
-    """Return illumination-tolerant local grayscale disagreement."""
-    reference_float = reference.astype(np.float32) / 255.0
-    aligned_float = aligned.astype(np.float32) / 255.0
+    """Return illumination-tolerant local grayscale disagreement.
+
+    Moment subtraction is evaluated in float64. In very dark, locally constant
+    regions the legitimate SSIM denominator is much smaller than 1e-6; flooring it
+    at that scale makes identical black borders look changed. A machine-scale floor
+    preserves the stabilizing SSIM constants without inventing residual structure.
+    """
+    reference_float = reference.astype(np.float64) / 255.0
+    aligned_float = aligned.astype(np.float64) / 255.0
     kernel = (11, 11)
     reference_mean = cv2.GaussianBlur(reference_float, kernel, 0)
     aligned_mean = cv2.GaussianBlur(aligned_float, kernel, 0)
@@ -27,7 +33,7 @@ def local_dissimilarity(reference: np.ndarray, aligned: np.ndarray) -> np.ndarra
     denominator = (reference_mean**2 + aligned_mean**2 + c1) * (
         reference_var + aligned_var + c2
     )
-    ssim = np.clip(numerator / np.maximum(denominator, 1e-6), -1.0, 1.0)
+    ssim = np.clip(numerator / np.maximum(denominator, 1e-12), -1.0, 1.0)
     absolute_difference = cv2.GaussianBlur(
         np.abs(reference_float - aligned_float),
         (9, 9),
