@@ -1,0 +1,17 @@
+{
+  "commit": "9fd0cc0484702f75ae13eb69d0d5f7d88f835b87",
+  "focused_tests": {
+    "command": "PYTHONPATH=. python -m pytest -q tests/test_reviewed_managed_download_urls.py",
+    "passed": 7,
+    "failed": 0
+  },
+  "python_compile": "pass",
+  "line_length_max": 88,
+  "network_requests_performed": 0,
+  "authoritative_422_run_completed": false,
+  "notes": [
+    "The planner validates exact manifest identities and emits only missing exact-key requests.",
+    "The temporary access token is not stored in this receipt.",
+    "Issue #30 remains open until 422 JPEGs are materialized and the cold/warm baseline is run."
+  ]
+}
