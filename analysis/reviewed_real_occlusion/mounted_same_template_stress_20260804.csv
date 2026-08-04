@@ -1,0 +1,29 @@
+label,first_image,second_image,occlusion_evidence,occlusion_ink_mismatch_capture,outside_unmatched_ink_union_fraction,notes
+negative,i4071659-00042(1).jpg,i4071659-00229(1).jpg,0.0184,,,same template different record; photo-sized difference does not explain page text
+negative,i4071659-00042(1).jpg,i4071659-00438(1).jpg,0.0415,,,same template different record; photograph present only in first image
+negative,i4071659-00042(1).jpg,i4071659-00701(1).jpg,0.0378,,,same template different record
+negative,i4071659-00042(1).jpg,i4071659-01057(1).jpg,0.0391,,,same template different record
+negative,i4071659-00042(1).jpg,i4071659-01096(1).jpg,0.0388,,,same template different record
+negative,i4071659-00042(1).jpg,i4071659-01126(1).jpg,0.0347,,,same template different record
+negative,i4071659-00229(1).jpg,i4071659-00438(1).jpg,0.0361,,,same template different record
+negative,i4071659-00229(1).jpg,i4071659-00701(1).jpg,0.0387,,,same template different record
+negative,i4071659-00229(1).jpg,i4071659-01057(1).jpg,0.0346,,,same template different record
+negative,i4071659-00229(1).jpg,i4071659-01096(1).jpg,0.0000,,,same template different record
+negative,i4071659-00229(1).jpg,i4071659-01126(1).jpg,0.0340,,,same template different record
+negative,i4071659-00438(1).jpg,i4071659-00701(1).jpg,0.0344,,,same template different record
+negative,i4071659-00438(1).jpg,i4071659-01057(1).jpg,0.0203,,,same template different record
+negative,i4071659-00438(1).jpg,i4071659-01096(1).jpg,0.0367,,,same template different record
+negative,i4071659-00438(1).jpg,i4071659-01126(1).jpg,0.0000,,,same template different record
+negative,i4071659-00701(1).jpg,i4071659-01057(1).jpg,0.0353,,,same template different record
+negative,i4071659-00701(1).jpg,i4071659-01096(1).jpg,0.0000,,,same template different record
+negative,i4071659-00701(1).jpg,i4071659-01126(1).jpg,0.0000,,,same template different record
+negative,i4071659-01057(1).jpg,i4071659-01096(1).jpg,0.0346,,,same template different record
+negative,i4071659-01057(1).jpg,i4071659-01126(1).jpg,0.0000,,,same template different record
+negative,i4071659-01096(1).jpg,i4071659-01126(1).jpg,0.0389,,,same template different record
+positive_control,i4071659-00042(1).jpg,synthetic_sheet_on_i4071659-00042,0.8375,1.000,0.000,matched physical-sheet mechanism control
+positive_control,i4071659-00229(1).jpg,synthetic_sheet_on_i4071659-00229,0.8463,1.000,0.000,matched physical-sheet mechanism control
+positive_control,i4071659-00438(1).jpg,synthetic_sheet_on_i4071659-00438,0.8483,1.000,0.000,matched physical-sheet mechanism control
+positive_control,i4071659-00701(1).jpg,synthetic_sheet_on_i4071659-00701,0.8807,0.979,0.005,matched physical-sheet mechanism control
+positive_control,i4071659-01057(1).jpg,synthetic_sheet_on_i4071659-01057,0.9424,0.989,0.004,matched physical-sheet mechanism control
+positive_control,i4071659-01096(1).jpg,synthetic_sheet_on_i4071659-01096,0.8643,0.977,0.007,matched physical-sheet mechanism control
+positive_control,i4071659-01126(1).jpg,synthetic_sheet_on_i4071659-01126,0.8870,1.000,0.000,matched physical-sheet mechanism control
