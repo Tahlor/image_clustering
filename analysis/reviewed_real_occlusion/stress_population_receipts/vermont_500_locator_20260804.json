@@ -1,0 +1,45 @@
+{
+  "schema_version": "reviewed-real-stress-population-locator-v1",
+  "recorded_at_utc": "2026-08-04T17:52:00Z",
+  "authority": {
+    "base_sample": {
+      "path": "C:\\Users\\tarchibald\\github\\ancestry\\vermont\\63129_dinov3_smart_sample\\data\\sample\\smart_sample_500.csv",
+      "expected_rows": 500,
+      "authority_note": "The accompanying smart_sample_summary.json is the source-project authority."
+    },
+    "expanded_neighbor_input": {
+      "path": "C:\\Users\\tarchibald\\github\\ancestry\\vermont\\63129_dinov3_smart_sample\\data\\sample\\selected_images_500_with_neighbors",
+      "documented_image_count": 1488,
+      "role": "Established Vermont 500-image sample expanded with embedding neighbors for clustering and safety review."
+    },
+    "prior_issue2_output": {
+      "path": "C:\\Users\\tarchibald\\github\\ancestry\\vermont\\63129_dinov3_smart_sample\\data\\sample\\selected_images_500_with_neighbors_analysis_issue2_20260725",
+      "status": "diagnostic validation failed; not final authority"
+    },
+    "regenerated_output": {
+      "path": "C:\\Users\\tarchibald\\github\\ancestry\\vermont\\63129_dinov3_smart_sample\\data\\sample\\selected_images_500_with_neighbors_analysis_master_20260726",
+      "status": "automatic regenerated bundle; not human decision authority"
+    },
+    "frozen_review_labels": {
+      "path": "C:\\Users\\tarchibald\\github\\ancestry\\vermont\\63129_dinov3_smart_sample\\data\\sample\\selected_images_500_with_neighbors_analysis\\review_labels",
+      "documented_input_images": 1488,
+      "documented_input_clusters": 1401,
+      "documented_reviewed_clusters": 76,
+      "documented_unreviewed_clusters": 1325,
+      "status": "durable partial human handoff; progress and final counts use different derived semantics"
+    }
+  },
+  "sources": {
+    "vermont_repository_commit": "7dabf71831e77cfc8d1cf298995221b626d9ed81",
+    "vermont_artifact_map": "Tahlor/vermont:docs/datasets-and-artifacts.md",
+    "image_clustering_issue": "Tahlor/image_clustering#2"
+  },
+  "access_checks": {
+    "base_sample_in_vermont_git": false,
+    "base_summary_in_vermont_git": false,
+    "expanded_images_in_current_runtime": false,
+    "file_library_search_status": "retrieval service error after bounded retries",
+    "ready_for_stress_execution": false
+  },
+  "next_valid_gate": "Materialize the base manifest, expanded 1,488-image tree, embedding-neighbor lineage, and frozen review labels before running the frozen detector."
+}
