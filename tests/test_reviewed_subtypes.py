@@ -135,6 +135,26 @@ def test_visual_only_overlay_cannot_enter_material_metric(tmp_path: Path) -> Non
         validate_completed_subtypes(prepared, sidecar)
 
 
+def test_visual_only_overlay_cannot_use_same_occluded_subtype(
+    tmp_path: Path,
+) -> None:
+    prepared, sidecar = _prepare_completed_sidecar(tmp_path)
+    fieldnames, rows = _read_rows(sidecar)
+    members = json.loads(rows[0]["member_image_ids_json"])
+    rows[0].update(
+        {
+            "occlusion_subtype": "same_occluded",
+            "visual_relationship_category": "visual_only_overlay",
+            "visual_overlay_category": "stamp_or_seal",
+            "material_occlusion_metric_included": "false",
+            "affected_image_id": members[0],
+        }
+    )
+    _write_rows(sidecar, fieldnames, rows)
+    with pytest.raises(ValueError, match="requires inclusion"):
+        validate_completed_subtypes(prepared, sidecar)
+
+
 def test_member_image_ids_must_match_authority(tmp_path: Path) -> None:
     prepared, sidecar = _prepare_completed_sidecar(tmp_path)
     fieldnames, rows = _read_rows(sidecar)
