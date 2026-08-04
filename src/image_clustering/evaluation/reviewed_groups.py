@@ -89,6 +89,15 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--subtypes", type=Path)
     evaluate.add_argument("--calibrator", type=Path)
     evaluate.add_argument("--run-label", default="evaluation")
+    evaluate.add_argument(
+        "--include-split",
+        action="append",
+        choices=("development", "selection", "locked_audit"),
+        help=(
+            "Restrict emitted labels/metrics to a reviewed split. Repeat for "
+            "multiple splits. Omit only for a deliberately frozen full report."
+        ),
+    )
 
     calibrate = subparsers.add_parser("fit-calibration")
     calibrate.add_argument("--prepared-dir", type=Path, required=True)
@@ -129,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             subtype_path=args.subtypes,
             calibrator_path=args.calibrator,
             run_label=args.run_label,
+            include_splits=args.include_split,
         )
     elif args.command == "fit-calibration":
         output = fit_real_calibration(
