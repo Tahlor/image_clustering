@@ -4,6 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 from image_clustering.evaluation.reviewed_groups import (
     evaluate_predictions,
     prepare_dataset,
@@ -110,3 +112,15 @@ def test_evaluation_split_filter_does_not_emit_locked_rows(
         "development",
         "selection",
     }
+
+
+def test_locked_audit_guard_is_fail_closed(tmp_path: Path) -> None:
+    pipeline = _load_pipeline_module()
+    started, completed = pipeline._locked_audit_guard_paths(tmp_path)
+    assert pipeline._require_locked_audit_not_started(tmp_path) == (
+        started,
+        completed,
+    )
+    started.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="already started or completed"):
+        pipeline._require_locked_audit_not_started(tmp_path)
