@@ -40,6 +40,9 @@ from image_clustering.evaluation.reviewed_prepare import (
 )
 from image_clustering.evaluation.reviewed_score_replay import tune_candidate_replay
 from image_clustering.evaluation.reviewed_split import make_grouped_splits
+from image_clustering.evaluation.reviewed_subtypes import (
+    validate_completed_subtypes,
+)
 from image_clustering.evaluation.reviewed_validate import validate_manifest
 
 
@@ -66,6 +69,7 @@ __all__ = [
     "prepare_dataset",
     "stage_review_images",
     "tune_candidate_replay",
+    "validate_completed_subtypes",
     "validate_manifest",
 ]
 
@@ -98,6 +102,10 @@ def _parser() -> argparse.ArgumentParser:
             "multiple splits. Omit only for a deliberately frozen full report."
         ),
     )
+
+    validate_subtypes = subparsers.add_parser("validate-subtypes")
+    validate_subtypes.add_argument("--prepared-dir", type=Path, required=True)
+    validate_subtypes.add_argument("--subtypes", type=Path, required=True)
 
     calibrate = subparsers.add_parser("fit-calibration")
     calibrate.add_argument("--prepared-dir", type=Path, required=True)
@@ -139,6 +147,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             calibrator_path=args.calibrator,
             run_label=args.run_label,
             include_splits=args.include_split,
+        )
+    elif args.command == "validate-subtypes":
+        output = validate_completed_subtypes(
+            args.prepared_dir,
+            args.subtypes,
         )
     elif args.command == "fit-calibration":
         output = fit_real_calibration(
