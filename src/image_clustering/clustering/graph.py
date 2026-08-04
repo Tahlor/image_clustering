@@ -47,13 +47,43 @@ def _is_material_occlusion_contradiction(comparison: PairComparison) -> bool:
     )
 
 
+def _is_strong_localized_occlusion_edge(comparison: PairComparison) -> bool:
+    """Require persisted block-localization evidence for a bridge edge.
+
+    A same-template pair can register strongly and even contain a compact material
+    difference such as a photo or stamp. Such a pair cannot justify overriding an
+    endpoint contradiction unless one contiguous physical block captures a material
+    share of the text mismatch and the remaining exterior is stable. Older cached
+    comparisons lack these fields and therefore fail closed until recomputed.
+    """
+    full_page = comparison.full_page_occlusion_count > 0
+    clean_exterior = (
+        comparison.outside_unmatched_ink_union_fraction <= 0.08
+        and comparison.outside_ink_mismatch_tiles_fraction <= 0.30
+    )
+    block_replacement = (
+        comparison.inside_unmatched_ink_union_fraction >= 0.35
+        or comparison.occlusion_material_median >= 0.02
+    )
+    return (
+        comparison.same_document
+        and comparison.automatic_link_eligible
+        and comparison.branch == "physical_occlusion"
+        and comparison.occlusion_evidence >= 0.45
+        and comparison.occlusion_ink_mismatch_capture >= 0.35
+        and comparison.occlusion_localization_contrast >= 0.03
+        and block_replacement
+        and (clean_exterior or full_page)
+    )
+
+
 def _has_accepted_occlusion_bridge(
     first: str,
     second: str,
     prospective_members: set[str],
     lookup: dict[tuple[str, str], PairComparison],
 ) -> bool:
-    """Return whether two accepted occlusion edges explain a rejected outer pair."""
+    """Return whether two localized occlusion edges explain a rejected outer pair."""
     contradiction = lookup.get(_pair_key(first, second))
     if contradiction is None or not _is_material_occlusion_contradiction(
         contradiction
@@ -65,10 +95,8 @@ def _has_accepted_occlusion_bridge(
         if (
             first_edge is not None
             and second_edge is not None
-            and first_edge.same_document
-            and second_edge.same_document
-            and first_edge.branch == "physical_occlusion"
-            and second_edge.branch == "physical_occlusion"
+            and _is_strong_localized_occlusion_edge(first_edge)
+            and _is_strong_localized_occlusion_edge(second_edge)
         ):
             return True
     return False
