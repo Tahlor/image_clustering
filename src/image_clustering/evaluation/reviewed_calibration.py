@@ -62,7 +62,10 @@ def fit_real_calibration(
     ]
     identity_knots = _pav_fit(
         [
-            (float(row["same_document_probability"]), int(row["truth_same_document"]))
+            (
+                float(row["same_document_probability"]),
+                int(row["truth_same_document"]),
+            )
             for row in selection
         ]
     )
@@ -115,11 +118,11 @@ def fit_real_calibration(
         "selection_pair_count": len(selection),
         "identity_isotonic_knots": identity_knots,
         "conditional_occlusion_isotonic_knots": conditional_knots,
-        "conditional_occlusion_truth": (
-            "material_occlusion_metric_included"
-        ),
+        "conditional_occlusion_truth": "material_occlusion_metric_included",
         "subtype_validation": subtype_validation,
-        "graph_edge_policy": "unchanged; calibrated probabilities are review-only",
+        "graph_edge_policy": (
+            "unchanged; calibrated probabilities are review-only"
+        ),
         "locked_audit_used_for_fit": False,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
