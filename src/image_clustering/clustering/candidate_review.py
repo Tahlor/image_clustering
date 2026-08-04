@@ -24,6 +24,11 @@ class OcclusionReviewCandidate:
     same_occluded_probability: float
     same_document_probability: float
     occluded_given_same_probability: float
+    raw_occluded_given_same_probability: float
+    occlusion_evidence: float
+    inside_unmatched_ink_union_fraction: float
+    occlusion_ink_mismatch_capture: float
+    occlusion_localization_contrast: float
     deterministic_same_document: bool
     automatic_link_eligible: bool
     hard_contradiction: bool
@@ -57,8 +62,12 @@ def _accepted_neighbors(
     for comparison in result.comparisons:
         if not comparison.same_document:
             continue
-        neighbors[comparison.first_image_id].add(comparison.second_image_id)
-        neighbors[comparison.second_image_id].add(comparison.first_image_id)
+        neighbors.setdefault(comparison.first_image_id, set()).add(
+            comparison.second_image_id
+        )
+        neighbors.setdefault(comparison.second_image_id, set()).add(
+            comparison.first_image_id
+        )
     return neighbors
 
 
@@ -89,6 +98,15 @@ def _content_metrics(comparison: PairComparison) -> ContentMetrics:
         full_page_occlusion_count=comparison.full_page_occlusion_count,
         shallow_occlusion_count=comparison.shallow_occlusion_count,
         page_count=comparison.page_count,
+        inside_unmatched_ink_union_fraction=(
+            comparison.inside_unmatched_ink_union_fraction
+        ),
+        occlusion_ink_mismatch_capture=(
+            comparison.occlusion_ink_mismatch_capture
+        ),
+        occlusion_localization_contrast=(
+            comparison.occlusion_localization_contrast
+        ),
     )
 
 
@@ -196,6 +214,19 @@ def rank_occlusion_candidates(
                 same_document_probability=comparison.same_document_probability,
                 occluded_given_same_probability=(
                     comparison.occluded_given_same_probability
+                ),
+                raw_occluded_given_same_probability=(
+                    comparison.raw_occluded_given_same_probability
+                ),
+                occlusion_evidence=comparison.occlusion_evidence,
+                inside_unmatched_ink_union_fraction=(
+                    comparison.inside_unmatched_ink_union_fraction
+                ),
+                occlusion_ink_mismatch_capture=(
+                    comparison.occlusion_ink_mismatch_capture
+                ),
+                occlusion_localization_contrast=(
+                    comparison.occlusion_localization_contrast
                 ),
                 deterministic_same_document=comparison.same_document,
                 automatic_link_eligible=comparison.automatic_link_eligible,
