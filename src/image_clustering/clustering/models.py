@@ -89,6 +89,9 @@ class PairComparison:
     outside_unmatched_ink_fraction: float = 1.0
     outside_unmatched_ink_union_fraction: float = 1.0
     outside_ink_mismatch_tiles_fraction: float = 1.0
+    inside_unmatched_ink_union_fraction: float = 0.0
+    occlusion_ink_mismatch_capture: float = 0.0
+    occlusion_localization_contrast: float = 0.0
     full_page_occlusion_count: int = 0
     shallow_occlusion_count: int = 0
     page_count: int = 1
@@ -97,6 +100,8 @@ class PairComparison:
     probability_model_version: str | None = None
     same_document_probability: float = 0.0
     occluded_given_same_probability: float = 0.0
+    raw_occluded_given_same_probability: float = 0.0
+    occlusion_evidence: float = 0.0
     same_clean_probability: float = 0.0
     same_occluded_probability: float = 0.0
     different_document_probability: float = 1.0
