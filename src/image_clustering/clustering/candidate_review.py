@@ -34,6 +34,11 @@ class OcclusionReviewCandidate:
     registration_fallback_used: bool
     registration_alignment_score: float
     decision_reason: str
+    raw_occluded_given_same_probability: float = 0.0
+    occlusion_evidence: float = 0.0
+    inside_unmatched_ink_union_fraction: float = 0.0
+    occlusion_ink_mismatch_capture: float = 0.0
+    occlusion_localization_contrast: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the candidate to a JSON-serializable row."""
@@ -57,8 +62,12 @@ def _accepted_neighbors(
     for comparison in result.comparisons:
         if not comparison.same_document:
             continue
-        neighbors[comparison.first_image_id].add(comparison.second_image_id)
-        neighbors[comparison.second_image_id].add(comparison.first_image_id)
+        neighbors.setdefault(comparison.first_image_id, set()).add(
+            comparison.second_image_id
+        )
+        neighbors.setdefault(comparison.second_image_id, set()).add(
+            comparison.first_image_id
+        )
     return neighbors
 
 
@@ -89,6 +98,15 @@ def _content_metrics(comparison: PairComparison) -> ContentMetrics:
         full_page_occlusion_count=comparison.full_page_occlusion_count,
         shallow_occlusion_count=comparison.shallow_occlusion_count,
         page_count=comparison.page_count,
+        inside_unmatched_ink_union_fraction=(
+            comparison.inside_unmatched_ink_union_fraction
+        ),
+        occlusion_ink_mismatch_capture=(
+            comparison.occlusion_ink_mismatch_capture
+        ),
+        occlusion_localization_contrast=(
+            comparison.occlusion_localization_contrast
+        ),
     )
 
 
@@ -211,6 +229,19 @@ def rank_occlusion_candidates(
                     comparison.registration_alignment_score
                 ),
                 decision_reason=comparison.reason,
+                raw_occluded_given_same_probability=(
+                    comparison.raw_occluded_given_same_probability
+                ),
+                occlusion_evidence=comparison.occlusion_evidence,
+                inside_unmatched_ink_union_fraction=(
+                    comparison.inside_unmatched_ink_union_fraction
+                ),
+                occlusion_ink_mismatch_capture=(
+                    comparison.occlusion_ink_mismatch_capture
+                ),
+                occlusion_localization_contrast=(
+                    comparison.occlusion_localization_contrast
+                ),
             )
         )
     candidates.sort(
