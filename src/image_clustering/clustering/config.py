@@ -48,6 +48,17 @@ class ClusterConfig(_ClusterConfig):
     occlusion_evidence_distributed_outside_tiles_fraction: float = 0.55
     occlusion_evidence_distributed_penalty: float = 0.05
 
+    # Near-background sheets can erase text while producing weak grayscale
+    # residuals. When no residual component survives, infer one rectangular block
+    # only from a dense, contiguous band of text-channel mismatch. The final
+    # exterior-agreement and record-replacement gates remain authoritative.
+    occlusion_ink_block_row_density: float = 0.40
+    occlusion_ink_block_column_density: float = 0.35
+    occlusion_ink_block_min_occupancy: float = 0.45
+    occlusion_ink_block_min_width_fraction: float = 0.35
+    occlusion_ink_block_min_rows: int = 3
+    occlusion_ink_block_max_gap: int = 1
+
     # At reduced working resolutions, distributed handwriting replacement can
     # satisfy the broad material-change shortcut and make both pages look fully
     # occluded. A page-wide state escapes this veto only with clearly stronger
@@ -92,6 +103,10 @@ class ClusterConfig(_ClusterConfig):
             "occlusion_evidence_distributed_outside_union_fraction",
             "occlusion_evidence_distributed_outside_tiles_fraction",
             "occlusion_evidence_distributed_penalty",
+            "occlusion_ink_block_row_density",
+            "occlusion_ink_block_column_density",
+            "occlusion_ink_block_min_occupancy",
+            "occlusion_ink_block_min_width_fraction",
             "occlusion_full_page_text_min_ink_mismatch_tiles_fraction",
             "occlusion_full_page_text_max_material_median",
             "occlusion_full_page_text_max_inside_unmatched_ink_union_fraction",
@@ -124,6 +139,10 @@ class ClusterConfig(_ClusterConfig):
             raise ValueError(
                 "occlusion evidence full inside mismatch must exceed its minimum"
             )
+        if self.occlusion_ink_block_min_rows < 1:
+            raise ValueError("occlusion ink block minimum rows must be positive")
+        if self.occlusion_ink_block_max_gap < 0:
+            raise ValueError("occlusion ink block maximum gap cannot be negative")
         if self.ecc_coarse_dimension < 64:
             raise ValueError("ecc_coarse_dimension must be at least 64")
         if self.ecc_working_dimension < 128:
