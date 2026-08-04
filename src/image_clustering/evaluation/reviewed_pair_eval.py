@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from image_clustering.evaluation.reviewed_models import parse_bool
 from image_clustering.evaluation.reviewed_predictions import (
     UnionFind,
     calibrate_prediction,
@@ -34,6 +35,16 @@ def _failure_category(row: Mapping[str, Any]) -> str:
     if row.get("truth_same_document"):
         return "same_document_probability_or_deterministic_decision"
     return "suspicious_negative_probability"
+
+
+def _optional_annotation_bool(
+    annotation: Mapping[str, str],
+    field: str,
+) -> bool | None:
+    value = annotation.get(field)
+    if value is None or not str(value).strip():
+        return None
+    return parse_bool(value)
 
 
 def normalized_predictions(
@@ -131,10 +142,21 @@ def build_pair_rows(
             "occlusion_subtype",
             "uncertain_occlusion_subtype" if accepted else "different_document",
         )
+        material_metric = _optional_annotation_bool(
+            annotation,
+            "material_occlusion_metric_included",
+        )
         row = {
             **truth,
             "split": splits[truth["original_cluster_id"]]["split"],
             "derived_occlusion_subtype": subtype,
+            "derived_visual_relationship_category": annotation.get(
+                "visual_relationship_category", "unannotated"
+            ),
+            "derived_visual_overlay_category": annotation.get(
+                "visual_overlay_category", "unannotated"
+            ),
+            "derived_material_occlusion_metric_included": material_metric,
             "derived_occlusion_size_category": annotation.get(
                 "occlusion_size_category", "unannotated"
             ),
@@ -204,15 +226,28 @@ def build_group_rows(
             if row["original_cluster_id"] == group["original_cluster_id"]
             and row["truth_same_document"]
         )
+        annotation = subtypes.get(group["original_cluster_id"], {})
         output.append(
             {
                 "original_cluster_id": group["original_cluster_id"],
                 "review_decision": group["review_decision"],
                 "split": splits[group["original_cluster_id"]]["split"],
                 "cluster_size": group["cluster_size"],
-                "derived_occlusion_subtype": subtypes.get(
-                    group["original_cluster_id"], {}
-                ).get("occlusion_subtype", "not_applicable"),
+                "derived_occlusion_subtype": annotation.get(
+                    "occlusion_subtype", "not_applicable"
+                ),
+                "derived_visual_relationship_category": annotation.get(
+                    "visual_relationship_category", "unannotated"
+                ),
+                "derived_visual_overlay_category": annotation.get(
+                    "visual_overlay_category", "unannotated"
+                ),
+                "derived_material_occlusion_metric_included": (
+                    _optional_annotation_bool(
+                        annotation,
+                        "material_occlusion_metric_included",
+                    )
+                ),
                 "predicted_component_count": len(roots),
                 "complete_component_recovery": complete if accepted else None,
                 "complete_rejected_separation": complete if not accepted else None,
