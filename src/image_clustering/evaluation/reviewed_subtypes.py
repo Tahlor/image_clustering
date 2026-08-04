@@ -269,6 +269,11 @@ def validate_completed_subtypes(
                     f"{cluster_id}"
                 )
         else:
+            if subtype == "same_occluded":
+                raise ValueError(
+                    "same_occluded subtype requires inclusion in the material "
+                    f"occlusion metric: {cluster_id}"
+                )
             if relationship == "material_physical_occlusion":
                 raise ValueError(
                     "Physical occlusion was excluded from its required metric: "
