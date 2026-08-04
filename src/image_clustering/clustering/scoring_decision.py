@@ -41,6 +41,33 @@ def _near_duplicate(
     )
 
 
+def _looks_like_full_page_text_replacement(
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> bool:
+    """Detect broad filled-text replacement misread as a whole-page sheet.
+
+    At lower working resolutions, handwriting and printed values can blur into broad
+    smooth residuals. The full-page shortcut must not treat that as a physical sheet
+    unless the block has stronger material contrast or denser inside replacement.
+    """
+    page_support = (
+        content.occlusion_area_fraction
+        * max(content.page_count, 1)
+        / max(content.occlusion_candidate_count, 1)
+    )
+    return (
+        content.full_page_occlusion_count > 0
+        and page_support >= 0.75
+        and content.ink_mismatch_tiles_fraction
+        >= config.occlusion_full_page_text_min_ink_mismatch_tiles_fraction
+        and content.occlusion_material_median
+        < config.occlusion_full_page_text_max_material_median
+        and content.inside_unmatched_ink_union_fraction
+        < config.occlusion_full_page_text_max_inside_unmatched_ink_union_fraction
+    )
+
+
 def _looks_like_different_filled_record(
     content: ContentMetrics,
     config: ClusterConfig,
@@ -74,6 +101,7 @@ def _looks_like_different_filled_record(
         overwhelming_replacement
         or thin_text_replacement
         or distributed_outside_replacement
+        or _looks_like_full_page_text_replacement(content, config)
     )
 
 
