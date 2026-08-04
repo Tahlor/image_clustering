@@ -24,11 +24,6 @@ class OcclusionReviewCandidate:
     same_occluded_probability: float
     same_document_probability: float
     occluded_given_same_probability: float
-    raw_occluded_given_same_probability: float
-    occlusion_evidence: float
-    inside_unmatched_ink_union_fraction: float
-    occlusion_ink_mismatch_capture: float
-    occlusion_localization_contrast: float
     deterministic_same_document: bool
     automatic_link_eligible: bool
     hard_contradiction: bool
@@ -39,6 +34,11 @@ class OcclusionReviewCandidate:
     registration_fallback_used: bool
     registration_alignment_score: float
     decision_reason: str
+    raw_occluded_given_same_probability: float = 0.0
+    occlusion_evidence: float = 0.0
+    inside_unmatched_ink_union_fraction: float = 0.0
+    occlusion_ink_mismatch_capture: float = 0.0
+    occlusion_localization_contrast: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the candidate to a JSON-serializable row."""
@@ -215,19 +215,6 @@ def rank_occlusion_candidates(
                 occluded_given_same_probability=(
                     comparison.occluded_given_same_probability
                 ),
-                raw_occluded_given_same_probability=(
-                    comparison.raw_occluded_given_same_probability
-                ),
-                occlusion_evidence=comparison.occlusion_evidence,
-                inside_unmatched_ink_union_fraction=(
-                    comparison.inside_unmatched_ink_union_fraction
-                ),
-                occlusion_ink_mismatch_capture=(
-                    comparison.occlusion_ink_mismatch_capture
-                ),
-                occlusion_localization_contrast=(
-                    comparison.occlusion_localization_contrast
-                ),
                 deterministic_same_document=comparison.same_document,
                 automatic_link_eligible=comparison.automatic_link_eligible,
                 hard_contradiction=comparison.hard_contradiction,
@@ -242,6 +229,19 @@ def rank_occlusion_candidates(
                     comparison.registration_alignment_score
                 ),
                 decision_reason=comparison.reason,
+                raw_occluded_given_same_probability=(
+                    comparison.raw_occluded_given_same_probability
+                ),
+                occlusion_evidence=comparison.occlusion_evidence,
+                inside_unmatched_ink_union_fraction=(
+                    comparison.inside_unmatched_ink_union_fraction
+                ),
+                occlusion_ink_mismatch_capture=(
+                    comparison.occlusion_ink_mismatch_capture
+                ),
+                occlusion_localization_contrast=(
+                    comparison.occlusion_localization_contrast
+                ),
             )
         )
     candidates.sort(
