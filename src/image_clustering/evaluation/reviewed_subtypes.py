@@ -86,10 +86,15 @@ def _member_ids(row: dict[str, str], cluster_id: str) -> list[str]:
             f"Invalid member_image_ids_json for {cluster_id}"
         ) from error
     if not isinstance(values, list) or not values:
-        raise ValueError(f"member_image_ids_json must be a non-empty list: {cluster_id}")
+        raise ValueError(
+            "member_image_ids_json must be a non-empty list: "
+            f"{cluster_id}"
+        )
     members = [str(value).strip() for value in values]
     if any(not value for value in members) or len(set(members)) != len(members):
-        raise ValueError(f"Invalid or duplicate member image IDs for {cluster_id}")
+        raise ValueError(
+            f"Invalid or duplicate member image IDs for {cluster_id}"
+        )
     return members
 
 
@@ -143,7 +148,8 @@ def validate_completed_subtypes(
         missing_fields = sorted(REQUIRED_COMPLETED_FIELDS - set(row))
         if missing_fields:
             raise ValueError(
-                f"Subtype row for {cluster_id} is missing fields: {missing_fields}"
+                f"Subtype row for {cluster_id} is missing fields: "
+                f"{missing_fields}"
             )
         members = _member_ids(row, cluster_id)
         if members != expected_member_list:
@@ -162,7 +168,8 @@ def validate_completed_subtypes(
         )
         if relationship not in ALLOWED_VISUAL_RELATIONSHIPS:
             raise ValueError(
-                f"Unsupported visual relationship for {cluster_id}: {relationship}"
+                f"Unsupported visual relationship for {cluster_id}: "
+                f"{relationship}"
             )
         if relationship == "uncertain_or_other":
             raise ValueError(f"Unresolved visual relationship for {cluster_id}")
@@ -188,7 +195,9 @@ def validate_completed_subtypes(
             cluster_id,
         )
         if risk not in ALLOWED_HIDDEN_CONTENT_RISKS or risk == "uncertain":
-            raise ValueError(f"Invalid hidden-content risk for {cluster_id}: {risk}")
+            raise ValueError(
+                f"Invalid hidden-content risk for {cluster_id}: {risk}"
+            )
         size = _required_text(row, "occlusion_size_category", cluster_id)
         if size not in ALLOWED_OCCLUSION_SIZES or size == "uncertain":
             raise ValueError(f"Invalid occlusion size for {cluster_id}: {size}")
@@ -202,7 +211,8 @@ def validate_completed_subtypes(
             or difficulty == "uncertain"
         ):
             raise ValueError(
-                f"Invalid registration difficulty for {cluster_id}: {difficulty}"
+                f"Invalid registration difficulty for {cluster_id}: "
+                f"{difficulty}"
             )
 
         affected = _optional_member(
@@ -226,7 +236,9 @@ def validate_completed_subtypes(
         evidence = _required_text(row, "evidence", cluster_id)
         annotator = _required_text(row, "annotator_method", cluster_id)
         if not evidence or not annotator:
-            raise ValueError(f"Evidence and annotator method are required: {cluster_id}")
+            raise ValueError(
+                f"Evidence and annotator method are required: {cluster_id}"
+            )
 
         if material:
             material_count += 1
@@ -239,12 +251,13 @@ def validate_completed_subtypes(
                 "mixed_or_multi_state",
             }:
                 raise ValueError(
-                    f"Material metric row has incompatible relationship: {cluster_id}"
+                    "Material metric row has incompatible relationship: "
+                    f"{cluster_id}"
                 )
             if not affected or not occluded or not better:
                 raise ValueError(
-                    f"Material occlusion requires affected, occluded, and better IDs: "
-                    f"{cluster_id}"
+                    "Material occlusion requires affected, occluded, and "
+                    f"better IDs: {cluster_id}"
                 )
             if occluded == better:
                 raise ValueError(
@@ -252,12 +265,13 @@ def validate_completed_subtypes(
                 )
             if risk == "none" or size == "none":
                 raise ValueError(
-                    f"Material occlusion requires non-none risk and size: {cluster_id}"
+                    "Material occlusion requires non-none risk and size: "
+                    f"{cluster_id}"
                 )
         else:
             if relationship == "material_physical_occlusion":
                 raise ValueError(
-                    f"Physical occlusion was excluded from its required metric: "
+                    "Physical occlusion was excluded from its required metric: "
                     f"{cluster_id}"
                 )
             if subtype == "same_clean" and (risk != "none" or size != "none"):
