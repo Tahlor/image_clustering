@@ -1,0 +1,48 @@
+{
+  "artifacts": {
+    "assignments_csv": "assignments.csv",
+    "assignments_jsonl": "assignments.jsonl",
+    "reviewed_decisions": "reviewed_decisions.json",
+    "sha256_ledger": "SHA256SUMS.tsv"
+  },
+  "counts": {
+    "accepted_jpegs": 282,
+    "assignments_csv_rows": 422,
+    "assignments_jsonl_rows": 422,
+    "rejected_jpegs": 140,
+    "total_jpegs": 422
+  },
+  "details": {
+    "files_without_manifest_rows": [],
+    "jpeg_basename_collisions": [],
+    "jpeg_decode_failures": [],
+    "manifest_rows_without_files": [],
+    "missing_expected_accepted": [],
+    "missing_expected_rejected": [],
+    "relative_path_collisions": [],
+    "zero_byte_files": []
+  },
+  "materialized_at_utc": "2026-08-04T16:39:29.916309+00:00",
+  "provenance": {
+    "copied_from_library_completeness_receipt": true,
+    "no_detector_performance_claim": true,
+    "per_file_sha256_values_committed": false,
+    "reason_per_file_ledger_not_committed": "The source package keeps SHA256SUMS.tsv adjacent to the images; the current runtime could retrieve the completeness receipt and manifests but not the ledger bytes.",
+    "source_receipt_bytes_committed": false
+  },
+  "schema_version": "reviewed-real-library-materialization-receipt-v1",
+  "source_library_file_id": "file_00000000e98c81fda15420ae12bb6645",
+  "source_library_path": "/Vermont Naturalization/Images/Occlusion Review/MY_REVIEWED_GT_DATASET",
+  "source_receipt_filename": "completeness_receipt.json",
+  "verification": {
+    "accepted_count_ok": true,
+    "all_files_nonzero": true,
+    "all_jpegs_decode_as_jpeg": true,
+    "assignments_csv_jsonl_exact_semantic_agreement": true,
+    "ready_for_detector_execution_in_source_runtime": true,
+    "rejected_count_ok": true,
+    "total_count_ok": true,
+    "zero_filename_collisions": true,
+    "zero_missing_manifest_rows": true
+  }
+}
