@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,22 @@ from image_clustering.evaluation.reviewed_reporting import (
     write_reports,
 )
 
+KNOWN_SPLITS = frozenset({"development", "selection", "locked_audit"})
+
+
+def _normalize_include_splits(
+    include_splits: Collection[str] | None,
+) -> frozenset[str] | None:
+    if include_splits is None:
+        return None
+    normalized = frozenset(str(split) for split in include_splits)
+    if not normalized:
+        raise ValueError("include_splits must not be empty")
+    unknown = normalized - KNOWN_SPLITS
+    if unknown:
+        raise ValueError(f"unknown reviewed split(s): {sorted(unknown)}")
+    return normalized
+
 
 def evaluate_predictions(
     prepared_dir: Path,
@@ -32,7 +49,9 @@ def evaluate_predictions(
     subtype_path: Path | None = None,
     calibrator_path: Path | None = None,
     run_label: str = "evaluation",
+    include_splits: Collection[str] | None = None,
 ) -> dict[str, Any]:
+    selected_splits = _normalize_include_splits(include_splits)
     positive = load_jsonl(prepared_dir / "positive_pairs.jsonl")
     negative = load_jsonl(prepared_dir / "negative_pairs.jsonl")
     group_truth = load_jsonl(prepared_dir / "canonical_reviewed_groups.jsonl")
@@ -69,6 +88,31 @@ def evaluate_predictions(
         splits,
         subtypes,
     )
+    if selected_splits is not None:
+        selected_group_ids = {
+            original_cluster_id
+            for original_cluster_id, assignment in splits.items()
+            if assignment["split"] in selected_splits
+        }
+        pair_rows = [
+            row
+            for row in pair_rows
+            if row["original_cluster_id"] in selected_group_ids
+        ]
+        group_rows = [
+            row
+            for row in group_rows
+            if row["original_cluster_id"] in selected_group_ids
+        ]
+        failures = [
+            row
+            for row in failures
+            if row["original_cluster_id"] in selected_group_ids
+        ]
+        if not pair_rows or not group_rows:
+            raise ValueError(
+                "requested reviewed splits contain no evaluable pairs or groups"
+            )
     calibration_source = (
         calibrator["calibration_source"] if calibrator else "uncalibrated"
     )
@@ -81,5 +125,8 @@ def evaluate_predictions(
         calibration_source=calibration_source,
         run_label=run_label,
     )
+    evaluated_splits = sorted({row["split"] for row in pair_rows})
+    metrics["evaluated_splits"] = evaluated_splits
+    metrics["locked_audit_included"] = "locked_audit" in evaluated_splits
     write_reports(output_dir, pair_rows, group_rows, failures, metrics)
     return metrics
