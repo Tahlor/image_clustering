@@ -1,4 +1,7 @@
-"""Run the grouped reviewed-real occlusion evaluation with an explicit audit boundary."""
+"""Run the grouped reviewed-real occlusion evaluation.
+
+The runner enforces an explicit audit boundary.
+"""
 
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ ALL_SPLITS = frozenset({*TUNING_SPLITS, "locked_audit"})
 PHASES = ("baseline", "calibrate", "locked-audit")
 FREEZE_SCHEMA = "reviewed-real-frozen-system-v1"
 AUDIT_SCHEMA = "reviewed-real-locked-audit-execution-v1"
+AUDIT_STARTED_SCHEMA = "reviewed-real-locked-audit-started-v1"
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -172,6 +176,7 @@ def _phase_file_map(
 ) -> dict[str, Path]:
     if args.config is None:
         raise ValueError("--config is required for every governed phase")
+    prepared_dir = output_root / "prepared"
     return {
         "assignments_csv": _require_file(
             args.assignments_csv, "assignments CSV"
@@ -179,8 +184,32 @@ def _phase_file_map(
         "assignments_jsonl": _require_file(
             args.assignments_jsonl, "assignments JSONL"
         ),
+        "source_completeness_receipt": _require_file(
+            args.package_root / "completeness_receipt.json",
+            "source completeness receipt",
+        ),
+        "source_sha256_ledger": _require_file(
+            args.package_root / "SHA256SUMS.tsv",
+            "source SHA-256 ledger",
+        ),
         "config": _require_file(args.config, "detector config"),
         "subtypes": _require_file(subtype_path, "completed subtype sidecar"),
+        "integrity_check_report": _require_file(
+            prepared_dir / "integrity_check_report.json",
+            "prepared integrity report",
+        ),
+        "dataset_preparation_summary": _require_file(
+            prepared_dir / "dataset_preparation_summary.json",
+            "dataset preparation summary",
+        ),
+        "split_manifest": _require_file(
+            prepared_dir / "split_manifest.jsonl",
+            "grouped split manifest",
+        ),
+        "evaluation_input_manifest": _require_file(
+            prepared_dir / "evaluation_input_manifest.csv",
+            "evaluation input manifest",
+        ),
         "baseline_clustering": _require_file(
             output_root / "baseline_clustering" / "clustering.json",
             "baseline clustering",
@@ -523,6 +552,28 @@ def _run_calibration(
     return 0 if calibrated["promotion_gates"]["passed"] else 2
 
 
+def _locked_audit_guard_paths(output_root: Path) -> tuple[Path, Path]:
+    return (
+        output_root / "locked_audit_started_receipt.json",
+        output_root / "locked_audit_execution_receipt.json",
+    )
+
+
+def _require_locked_audit_not_started(output_root: Path) -> tuple[Path, Path]:
+    started_path, completed_path = _locked_audit_guard_paths(output_root)
+    existing = [
+        str(path.resolve())
+        for path in (started_path, completed_path)
+        if path.exists()
+    ]
+    if existing:
+        raise ValueError(
+            "locked audit already started or completed; refusing to silently "
+            f"evaluate it again: {existing}"
+        )
+    return started_path, completed_path
+
+
 def _run_locked_audit(
     args: argparse.Namespace,
     *,
@@ -534,12 +585,9 @@ def _run_locked_audit(
 ) -> int:
     if args.subtypes is None:
         raise ValueError("--subtypes is required for the frozen locked audit")
-    audit_receipt_path = output_root / "locked_audit_execution_receipt.json"
-    if audit_receipt_path.exists():
-        raise ValueError(
-            "locked audit already has an execution receipt; refusing to "
-            "silently evaluate it again"
-        )
+    started_path, audit_receipt_path = _require_locked_audit_not_started(
+        output_root
+    )
     freeze_path = output_root / "frozen_system_receipt.json"
     freeze = _verify_freeze_receipt(
         freeze_path,
@@ -548,6 +596,16 @@ def _run_locked_audit(
         subtype_path=subtype_path,
         config=config,
     )
+    started_receipt = {
+        "schema_version": AUDIT_STARTED_SCHEMA,
+        "phase": "locked-audit",
+        "status": "started",
+        "code_commit": freeze["code_commit"],
+        "frozen_receipt": str(freeze_path.resolve()),
+        "frozen_receipt_sha256": _sha256(freeze_path),
+        "locked_audit_used_for_fit": False,
+    }
+    _write_json(started_path, started_receipt)
     full_clustering = output_root / "frozen_full_clustering"
     _, runtime = _run_cold_warm(
         groups,
@@ -595,6 +653,8 @@ def _run_locked_audit(
         "code_commit": freeze["code_commit"],
         "frozen_receipt": str(freeze_path.resolve()),
         "frozen_receipt_sha256": _sha256(freeze_path),
+        "started_receipt": str(started_path.resolve()),
+        "started_receipt_sha256": _sha256(started_path),
         "evaluated_splits": sorted(ALL_SPLITS),
         "locked_audit_included": True,
         "locked_audit_used_for_fit": False,
