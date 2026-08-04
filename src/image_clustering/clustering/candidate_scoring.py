@@ -15,7 +15,7 @@ from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
 
-_MODEL_VERSION = "vermont-synthetic-logit-v3-full-page-text-gate"
+_MODEL_VERSION = "vermont-synthetic-logit-v4-dirty-exterior-identity-gate"
 
 _FEATURE_NAMES = (
     "registration_fallback",
@@ -274,6 +274,40 @@ def _occlusion_evidence(
     return float(max(0.0, min(1.0, evidence)))
 
 
+def _dirty_exterior_identity_support(
+    registration: Registration,
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> float:
+    """Softly gate noisy-exterior review scores on document-specific alignment.
+
+    Clean-exterior occlusions are unaffected. When broad mismatch remains outside the
+    proposed block, the review model must not rely on form-template alignment alone.
+    Strong SIFT overlap or ECC correlation receives full weight; weak support is
+    reduced continuously rather than changing the deterministic graph decision.
+    """
+    dirty_exterior = (
+        content.outside_unmatched_ink_union_fraction
+        >= config.occlusion_dirty_exterior_min_unmatched_ink_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        >= config.occlusion_dirty_exterior_min_ink_mismatch_tiles_fraction
+    )
+    if not dirty_exterior:
+        return 1.0
+    if registration.fallback_used:
+        return _ramp(
+            registration.alignment_score,
+            config.ecc_min_correlation,
+            config.occlusion_dirty_exterior_min_alignment_score,
+        )
+    minimum_overlap = 0.40 * config.occlusion_dirty_exterior_min_feature_overlap
+    return _ramp(
+        registration.feature_overlap,
+        minimum_overlap,
+        config.occlusion_dirty_exterior_min_feature_overlap,
+    )
+
+
 def _feature_values(
     registration: Registration,
     change: dict[str, float],
@@ -341,7 +375,13 @@ def pair_probabilities(
         values,
     )
     evidence_config = config or ClusterConfig()
-    occlusion_evidence = _occlusion_evidence(content, evidence_config)
+    content_evidence = _occlusion_evidence(content, evidence_config)
+    identity_support = _dirty_exterior_identity_support(
+        registration,
+        content,
+        evidence_config,
+    )
+    occlusion_evidence = content_evidence * identity_support
     p_occluded_given_same = raw_occluded_given_same * occlusion_evidence
     p_same_occluded = p_same * p_occluded_given_same
     p_same_clean = p_same * (1.0 - p_occluded_given_same)
