@@ -13,7 +13,9 @@ from image_clustering.evaluation.reviewed_subtypes import (
 from reviewed_fixture import build_package
 
 
-def _completed_rows(tmp_path: Path) -> tuple[Path, Path, list[str], list[dict[str, str]]]:
+def _completed_rows(
+    tmp_path: Path,
+) -> tuple[Path, Path, list[str], list[dict[str, str]]]:
     csv_path, jsonl_path = build_package(tmp_path)
     prepared = tmp_path / "prepared"
     prepare_dataset(
@@ -81,7 +83,9 @@ def test_material_group_lists_every_occluded_and_better_view(
             "meaningful_hidden_content_risk": "high",
             "occlusion_size_category": "large",
             "registration_difficulty": "moderate",
-            "evidence": "One source sheet hides indexed content visible in the other.",
+            "evidence": (
+                "One source sheet hides indexed content visible in the other."
+            ),
         }
     )
     _write_rows(sidecar, fieldnames, rows)
