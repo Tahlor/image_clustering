@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from image_clustering.clustering.config import ClusterConfig
 from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
+from image_clustering.clustering.scoring_decision import _localized_text_erasure
 
-_MODEL_VERSION = "vermont-synthetic-logit-v4-dirty-exterior-identity-gate"
+_MODEL_VERSION = "vermont-synthetic-logit-v5-localized-erasure-recall"
 
 _FEATURE_NAMES = (
     "registration_fallback",
@@ -42,8 +43,6 @@ _FEATURE_NAMES = (
     "visible_exterior_fraction",
 )
 
-# Development fit plus Platt calibration on the separate selection split. Runtime
-# inference is a pair of tiny linear models and does not require scikit-learn.
 _IDENTITY_INTERCEPT = -25.032403217297773
 _IDENTITY_COEFFICIENTS = (
     -3.30523264275,
@@ -125,9 +124,7 @@ def _linear_probability(
     if len(coefficients) != len(values):
         raise ValueError("Probability feature vector has the wrong length")
     terms = zip(coefficients, values, strict=True)
-    linear_value = sum(
-        coefficient * value for coefficient, value in terms
-    )
+    linear_value = sum(coefficient * value for coefficient, value in terms)
     return _sigmoid(intercept + linear_value)
 
 
@@ -162,14 +159,7 @@ def _occlusion_evidence(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> float:
-    """Measure whether one physical block explains the text-channel mismatch.
-
-    The synthetic classifier learned that broad disagreement often accompanies an
-    occlusion. Real same-template/different-record pages violate that shortcut: the
-    form registers well while handwriting changes throughout the page. This gate
-    requires a contiguous candidate to capture the mismatch and requires the text
-    channel outside the candidate to remain substantially stable.
-    """
+    """Measure whether one physical block explains the text-channel mismatch."""
     if not 1 <= content.occlusion_candidate_count <= 2:
         return 0.0
 
@@ -226,9 +216,6 @@ def _occlusion_evidence(
     )
     exterior_agreement = min(outside_union, outside_tiles)
 
-    # A full-page insert has little or no exterior to score. Material change is
-    # then the only acceptable substitute; this does not rescue ordinary filled
-    # forms because their broad difference is mostly thin text, not a sheet.
     if content.full_page_occlusion_count and page_support >= 0.70:
         exterior_agreement = max(exterior_agreement, 0.50 * material)
 
@@ -247,6 +234,7 @@ def _occlusion_evidence(
         + 0.18 * block_replacement
     )
 
+    localized_text_erasure = _localized_text_erasure(content, config)
     distributed_replacement = (
         content.outside_unmatched_ink_union_fraction
         >= config.occlusion_evidence_distributed_outside_union_fraction
@@ -256,13 +244,13 @@ def _occlusion_evidence(
     weak_localization = (
         content.occlusion_ink_mismatch_capture
         < config.occlusion_evidence_min_ink_mismatch_capture
-        and content.occlusion_residual_capture
-        < config.occlusion_min_residual_capture
+        and content.occlusion_residual_capture < config.occlusion_min_residual_capture
     )
     thin_text_only = (
         content.inside_unmatched_ink_union_fraction
         < config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
         and content.occlusion_material_median < 0.006
+        and not localized_text_erasure
     )
     if (
         distributed_replacement
@@ -279,13 +267,7 @@ def _dirty_exterior_identity_support(
     content: ContentMetrics,
     config: ClusterConfig,
 ) -> float:
-    """Softly gate noisy-exterior review scores on document-specific alignment.
-
-    Clean-exterior occlusions are unaffected. When broad mismatch remains outside the
-    proposed block, the review model must not rely on form-template alignment alone.
-    Strong SIFT overlap or ECC correlation receives full weight; weak support is
-    reduced continuously rather than changing the deterministic graph decision.
-    """
+    """Softly gate noisy-exterior review scores on document-specific alignment."""
     dirty_exterior = (
         content.outside_unmatched_ink_union_fraction
         >= config.occlusion_dirty_exterior_min_unmatched_ink_union_fraction
@@ -355,9 +337,9 @@ def pair_probabilities(
 ) -> PairProbabilities:
     """Return synthetic-calibrated probabilities and safe action flags.
 
-    ``candidate_flag`` is deliberately recall-oriented. ``automatic_link_eligible``
-    never follows the probability directly; it requires the existing conservative
-    deterministic acceptance and the absence of a hard contradiction.
+    ``candidate_flag`` is recall-oriented. A strict localized text-erasure rule may
+    surface a pair when the legacy synthetic logit under-rates a near-background
+    paper sheet. It never creates an automatic edge.
     """
     values = _feature_values(
         registration=registration,
@@ -385,13 +367,16 @@ def pair_probabilities(
     p_occluded_given_same = raw_occluded_given_same * occlusion_evidence
     p_same_occluded = p_same * p_occluded_given_same
     p_same_clean = p_same * (1.0 - p_occluded_given_same)
+    localized_text_erasure = _localized_text_erasure(content, evidence_config)
     return PairProbabilities(
         same_document=p_same,
         occluded_given_same=p_occluded_given_same,
         same_clean=p_same_clean,
         same_occluded=p_same_occluded,
         different_document=1.0 - p_same,
-        candidate_flag=p_same_occluded >= candidate_threshold,
+        candidate_flag=(
+            p_same_occluded >= candidate_threshold or localized_text_erasure
+        ),
         automatic_link_eligible=accepted and not hard_contradiction,
         raw_occluded_given_same=raw_occluded_given_same,
         occlusion_evidence=occlusion_evidence,
