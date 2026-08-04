@@ -68,6 +68,41 @@ def _looks_like_full_page_text_replacement(
     )
 
 
+def _localized_text_erasure(
+    content: ContentMetrics,
+    config: ClusterConfig,
+) -> bool:
+    """Detect a near-background sheet from localized text loss.
+
+    Some paper overlays are nearly the same brightness as the underlying page. They
+    erase a coherent block of print and handwriting but contribute little smooth
+    grayscale material contrast. This path requires that one block capture nearly
+    all mismatch and that the registered exterior remain clean. Page-wide different
+    records remain excluded by the full-page text-replacement veto.
+    """
+    page_support = (
+        content.occlusion_area_fraction
+        * max(content.page_count, 1)
+        / max(content.occlusion_candidate_count, 1)
+    )
+    return (
+        not _looks_like_full_page_text_replacement(content, config)
+        and content.occlusion_ink_mismatch_capture
+        >= max(config.occlusion_evidence_full_ink_mismatch_capture, 0.85)
+        and content.occlusion_localization_contrast
+        >= config.occlusion_evidence_full_localization_contrast
+        and content.outside_unmatched_ink_union_fraction
+        <= config.occlusion_clean_max_outside_unmatched_ink_union_fraction
+        and content.outside_ink_mismatch_tiles_fraction
+        <= config.occlusion_geometric_max_outside_ink_mismatch_tiles_fraction
+        and page_support >= config.occlusion_geometric_min_page_support_fraction
+        and content.occlusion_residual_capture
+        >= config.occlusion_geometric_min_residual_capture
+        and content.occlusion_rectangularity
+        >= config.occlusion_min_support_fill_fraction
+    )
+
+
 def _looks_like_different_filled_record(
     content: ContentMetrics,
     config: ClusterConfig,
@@ -89,6 +124,7 @@ def _looks_like_different_filled_record(
         and content.inside_unmatched_ink_union_fraction
         < config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
         and content.occlusion_material_median < 0.006
+        and not _localized_text_erasure(content, config)
     )
     distributed_outside_replacement = (
         content.outside_unmatched_ink_union_fraction
@@ -127,10 +163,18 @@ def _physical_occlusion(
         < config.occlusion_evidence_min_ink_mismatch_capture
     ):
         return False
+    if (
+        content.occlusion_localization_contrast
+        < config.occlusion_evidence_min_localization_contrast
+    ):
+        return False
+
+    localized_text_erasure = _localized_text_erasure(content, config)
     block_replacement = (
         content.inside_unmatched_ink_union_fraction
         >= config.occlusion_evidence_min_inside_unmatched_ink_union_fraction
         or content.occlusion_material_median >= 0.006
+        or localized_text_erasure
     )
     if not block_replacement:
         return False
@@ -220,6 +264,7 @@ def _physical_occlusion(
         or clean_large_change
         or geometric_material_change
         or extreme_change
+        or localized_text_erasure
     )
 
 
