@@ -36,6 +36,10 @@ def load_subtypes(path: Path | None) -> dict[str, dict[str, str]]:
     with path.open(newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
             cluster_id = row["original_cluster_id"].strip()
+            if not cluster_id:
+                raise ValueError("Subtype row has an empty original_cluster_id")
+            if cluster_id in output:
+                raise ValueError(f"Duplicate subtype row for {cluster_id}")
             subtype = row["occlusion_subtype"].strip()
             if subtype not in ALLOWED_SUBTYPES:
                 raise ValueError(f"Unsupported subtype {subtype!r} for {cluster_id}")
@@ -153,10 +157,22 @@ def prepare_dataset(
     subtype_rows = [
         {
             "original_cluster_id": group["original_cluster_id"],
+            "member_image_ids_json": json.dumps(
+                group["image_ids"],
+                separators=(",", ":"),
+            ),
             "occlusion_subtype": "uncertain_occlusion_subtype",
-            "occlusion_size_category": "unannotated",
-            "registration_difficulty": "unannotated",
+            "visual_relationship_category": "uncertain_or_other",
+            "visual_overlay_category": "uncertain",
+            "material_occlusion_metric_included": "",
+            "affected_image_id": "",
+            "occluded_image_id": "",
+            "better_view_image_id": "",
+            "meaningful_hidden_content_risk": "uncertain",
+            "occlusion_size_category": "uncertain",
+            "registration_difficulty": "uncertain",
             "evidence": "",
+            "uncertainty_notes": "",
             "annotator_method": "manual visual review; truth label unchanged",
         }
         for group in groups
