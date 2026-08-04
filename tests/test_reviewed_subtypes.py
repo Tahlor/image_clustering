@@ -6,13 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from image_clustering.evaluation.reviewed_groups import prepare_dataset
+from image_clustering.evaluation.reviewed_groups import (
+    evaluate_predictions,
+    fit_real_calibration,
+    prepare_dataset,
+)
 from image_clustering.evaluation.reviewed_prepare import load_subtypes
 from image_clustering.evaluation.reviewed_subtypes import (
     REQUIRED_COMPLETED_FIELDS,
     validate_completed_subtypes,
 )
-from reviewed_fixture import build_package
+from reviewed_fixture import build_package, write_predictions
 
 
 def _read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -63,6 +67,14 @@ def _prepare_completed_sidecar(tmp_path: Path) -> tuple[Path, Path]:
         )
     _write_rows(sidecar, fieldnames, rows)
     return prepared, sidecar
+
+
+def _write_pair_results(prepared: Path, path: Path) -> None:
+    predictions = path.parent / "predictions.jsonl"
+    write_predictions(prepared, predictions)
+    evaluate_predictions(prepared, predictions, path.parent / "evaluation")
+    source = path.parent / "evaluation" / "pair_results.jsonl"
+    path.write_bytes(source.read_bytes())
 
 
 def test_template_has_explicit_visual_evidence_fields(tmp_path: Path) -> None:
@@ -139,3 +151,45 @@ def test_duplicate_subtype_rows_fail_closed(tmp_path: Path) -> None:
     _write_rows(sidecar, fieldnames, rows)
     with pytest.raises(ValueError, match="Duplicate subtype row"):
         load_subtypes(sidecar)
+
+
+def test_explicit_sidecar_must_be_complete_before_calibration(
+    tmp_path: Path,
+) -> None:
+    csv_path, jsonl_path = build_package(tmp_path)
+    prepared = tmp_path / "prepared"
+    prepare_dataset(
+        csv_path,
+        prepared,
+        jsonl_path=jsonl_path,
+        package_root=tmp_path,
+    )
+    pair_results = tmp_path / "pair_results.jsonl"
+    _write_pair_results(prepared, pair_results)
+    sidecar = prepared / "accepted_group_occlusion_subtypes.csv"
+    with pytest.raises(ValueError, match="Unresolved occlusion subtype"):
+        fit_real_calibration(
+            prepared,
+            pair_results,
+            tmp_path / "calibrator.json",
+            subtype_path=sidecar,
+        )
+
+
+def test_completed_sidecar_drives_material_occlusion_calibration(
+    tmp_path: Path,
+) -> None:
+    prepared, sidecar = _prepare_completed_sidecar(tmp_path)
+    pair_results = tmp_path / "pair_results.jsonl"
+    _write_pair_results(prepared, pair_results)
+    calibrator = fit_real_calibration(
+        prepared,
+        pair_results,
+        tmp_path / "calibrator.json",
+        subtype_path=sidecar,
+    )
+    assert calibrator["conditional_occlusion_truth"] == (
+        "material_occlusion_metric_included"
+    )
+    assert calibrator["conditional_occlusion_isotonic_knots"] is not None
+    assert calibrator["subtype_validation"]["accepted_group_count"] == 134
