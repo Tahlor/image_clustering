@@ -262,6 +262,7 @@ def score_pair(
         accepted=accepted,
         hard_contradiction=contradiction,
         candidate_threshold=config.occlusion_candidate_probability_threshold,
+        config=config,
     )
     return PairComparison(
         first_image_id=previous.image.image_id,
@@ -309,6 +310,11 @@ def score_pair(
         outside_ink_mismatch_tiles_fraction=(
             content.outside_ink_mismatch_tiles_fraction
         ),
+        inside_unmatched_ink_union_fraction=(
+            content.inside_unmatched_ink_union_fraction
+        ),
+        occlusion_ink_mismatch_capture=content.occlusion_ink_mismatch_capture,
+        occlusion_localization_contrast=content.occlusion_localization_contrast,
         full_page_occlusion_count=content.full_page_occlusion_count,
         shallow_occlusion_count=content.shallow_occlusion_count,
         page_count=content.page_count,
@@ -317,6 +323,10 @@ def score_pair(
         probability_model_version=probabilities.model_version,
         same_document_probability=probabilities.same_document,
         occluded_given_same_probability=probabilities.occluded_given_same,
+        raw_occluded_given_same_probability=(
+            probabilities.raw_occluded_given_same
+        ),
+        occlusion_evidence=probabilities.occlusion_evidence,
         same_clean_probability=probabilities.same_clean,
         same_occluded_probability=probabilities.same_occluded,
         different_document_probability=probabilities.different_document,
