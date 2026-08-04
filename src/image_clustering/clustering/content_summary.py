@@ -10,6 +10,38 @@ from image_clustering.clustering.content_geometry import _tile_bounds
 from image_clustering.clustering.content_models import ContentGrid, ContentMetrics
 from image_clustering.clustering.content_pages import Candidate, PageRegion
 
+_FULL_PAGE_SUPPORT_FRACTION = 0.75
+
+
+def _candidate_page_support_fraction(
+    support: np.ndarray,
+    valid_tiles: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    gutter: int | None,
+    image_width: int,
+) -> float:
+    """Return candidate support relative to its own physical page.
+
+    Dense text-erasure candidates and residual candidates must share the same
+    full-page semantics. A near-total dense block cannot bypass record-replacement
+    and ECC safety rules merely because it was not created by the material shortcut.
+    """
+    _, columns = valid_tiles.shape
+    page_mask = np.ones_like(valid_tiles)
+    if gutter is not None:
+        gutter_column = min(
+            columns - 1,
+            max(1, round(gutter * columns / image_width)),
+        )
+        page_mask[:] = False
+        x0, _, x1, _ = bbox
+        if (x0 + x1) / 2 <= gutter:
+            page_mask[:, :gutter_column] = True
+        else:
+            page_mask[:, gutter_column:] = True
+    page_valid = valid_tiles & page_mask
+    return float((support & page_valid).sum() / max(page_valid.sum(), 1))
+
 
 def build_content_metrics(
     reference: np.ndarray,
@@ -49,7 +81,17 @@ def build_content_metrics(
             candidate_mask[ty0:ty1, tx0:tx1] = True
         rectangularities.append(float(candidate["rectangularity"]))
         boundaries.append(float(candidate["boundary"]))
-        full_page_count += int(candidate["full_page"])
+        page_support_fraction = _candidate_page_support_fraction(
+            support=support,
+            valid_tiles=grid.valid_tiles,
+            bbox=bbox,
+            gutter=gutter,
+            image_width=reference.shape[1],
+        )
+        full_page_count += int(
+            bool(candidate["full_page"])
+            or page_support_fraction >= _FULL_PAGE_SUPPORT_FRACTION
+        )
         page_width = (
             reference.shape[1]
             if gutter is None
