@@ -1,0 +1,20 @@
+{
+  "actual_image_count": 500,
+  "artifact_errors": [],
+  "artifact_manifest_count": 506,
+  "crosswalk_expected_count": 500,
+  "crosswalk_expected_names_missing": [],
+  "crosswalk_extra_names": [],
+  "crosswalk_row_count": 500,
+  "elapsed_seconds": 1.3151576519012451,
+  "image_manifest_count": 500,
+  "jpeg_decode_errors": [],
+  "package_manifest_sha256": "49691f9a16d9a53020b9f09f94d8db47f95444b451af2b435b97a70a6f71c27f",
+  "schema_version": "vermont-gt-500-integrity-v1",
+  "status": "pass",
+  "zip_bytes": 400850419,
+  "zip_crc_first_bad_member": null,
+  "zip_member_count": 508,
+  "zip_path": "/mnt/data/vermont_gt_500_images_and_ground_truth.zip",
+  "zip_sha256": "f3639c7283a395c9f925e08da7ec0672abfdb46511ff53fe3052cf781b24bf9e"
+}
