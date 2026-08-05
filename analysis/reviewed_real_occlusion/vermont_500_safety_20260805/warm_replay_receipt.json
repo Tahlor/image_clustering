@@ -1,0 +1,23 @@
+{
+  "cold_seconds": 237.905029296875,
+  "files": {
+    "automatic_edges.jsonl": {
+      "cold_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true,
+      "warm_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "comparisons.jsonl": {
+      "cold_sha256": "a73492ad0a6baddbb6b4e63ecdf0c1887c63d08a97e5d469a3c677ac6b2cc7e1",
+      "equal": true,
+      "warm_sha256": "a73492ad0a6baddbb6b4e63ecdf0c1887c63d08a97e5d469a3c677ac6b2cc7e1"
+    },
+    "review_candidates.jsonl": {
+      "cold_sha256": "f193f17633bee9dfde301458c03fb8aa8dfd5fac7498063e354bc98a603b5274",
+      "equal": true,
+      "warm_sha256": "f193f17633bee9dfde301458c03fb8aa8dfd5fac7498063e354bc98a603b5274"
+    }
+  },
+  "schema_version": "vermont-500-warm-replay-v1",
+  "summary_normalized_equal": true,
+  "warm_seconds": 1.8718211650848389
+}
