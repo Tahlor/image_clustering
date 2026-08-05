@@ -80,6 +80,19 @@ def _automatic_link_safety_reason(
     ):
         return "full-page ECC match requires review"
 
+    if (
+        branch == "physical_occlusion"
+        and (
+            registration.fallback_used
+            or registration.feature_overlap
+            < config.automatic_link_min_physical_occlusion_feature_overlap
+        )
+    ):
+        return (
+            "physical-occlusion match lacks strong document-specific feature "
+            "overlap"
+        )
+
     dirty_exterior = (
         branch == "physical_occlusion"
         and content.outside_unmatched_ink_union_fraction
