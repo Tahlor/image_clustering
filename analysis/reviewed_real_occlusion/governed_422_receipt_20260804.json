@@ -30,12 +30,21 @@
   },
   "promotion_gates": {
     "exact_cache_replay": true,
-    "external_500_safety_complete": false,
+    "external_500_automatic_link_safety_complete": true,
+    "external_500_v6_candidate_volume_replay_complete": false,
     "probability_review_only": true,
     "zero_contaminated_rejected_groups": true,
     "zero_reviewed_negative_auto_edges": true
   },
   "published_report_commit": "f8b78e8e2ed0e6e99c481e69a3ab398640264b74",
+  "review_recall_follow_up": {
+    "commit": "d999caf224bea822f56a96121fcaffc47012d98a",
+    "material_groups_after": 53,
+    "material_groups_before": 49,
+    "model_version": "vermont-synthetic-logit-v6-material-block-recall",
+    "review_only": true,
+    "status": "committed; independent 500 candidate-volume replay pending under v6 fingerprint"
+  },
   "run": {
     "accepted_groups_complete": 38,
     "cold_seconds": 350.275283575058,
