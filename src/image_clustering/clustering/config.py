@@ -37,7 +37,7 @@ class ClusterConfig(_ClusterConfig):
     # evidence: most text mismatch must lie inside one contiguous candidate while
     # the registered text channel outside that candidate remains substantially
     # stable.
-    occlusion_candidate_probability_threshold: float = 0.08
+    occlusion_candidate_probability_threshold: float = 0.04
     occlusion_evidence_min_ink_mismatch_capture: float = 0.15
     occlusion_evidence_full_ink_mismatch_capture: float = 0.75
     occlusion_evidence_min_localization_contrast: float = 0.03
