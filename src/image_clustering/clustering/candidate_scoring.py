@@ -16,7 +16,7 @@ from image_clustering.clustering.content import ContentMetrics
 from image_clustering.clustering.models import Registration
 from image_clustering.clustering.scoring_decision import _localized_text_erasure
 
-_MODEL_VERSION = "vermont-synthetic-logit-v5-localized-erasure-recall"
+_MODEL_VERSION = "vermont-synthetic-logit-v6-material-block-recall"
 
 _FEATURE_NAMES = (
     "registration_fallback",
@@ -85,7 +85,7 @@ _OCCLUSION_COEFFICIENTS = (
     2.20572211637,
     1.35998083064,
     2.2674292895,
-    5.08228494261,
+    5.08218494261,
     7.48353954155,
     3.74987617885,
     68.8749943246,
@@ -290,6 +290,56 @@ def _dirty_exterior_identity_support(
     )
 
 
+def _strong_material_block_candidate(
+    p_same: float,
+    content: ContentMetrics,
+    occlusion_evidence: float,
+) -> bool:
+    """Surface a coherent material block even when the synthetic logit is brittle.
+
+    A long paper strip can explain nearly all text-channel mismatch while its thin
+    aspect ratio drives the synthetic occlusion logit close to zero. This rule is
+    intentionally review-only and requires strong identity, one localized component,
+    a clean exterior, and substantial hidden document-specific ink.
+    """
+    return (
+        p_same >= 0.90
+        and content.occlusion_candidate_count == 1
+        and occlusion_evidence >= 0.75
+        and content.occlusion_ink_mismatch_capture >= 0.90
+        and content.inside_unmatched_ink_union_fraction >= 0.25
+        and content.outside_unmatched_ink_union_fraction <= 0.03
+        and content.outside_ink_mismatch_tiles_fraction <= 0.10
+        and content.occlusion_material_median >= 0.02
+    )
+
+
+def _low_text_material_candidate(
+    p_same: float,
+    registration: Registration,
+    content: ContentMetrics,
+) -> bool:
+    """Surface broad clean-exterior material states with little text underneath.
+
+    Horizontal paper strips or scanner-state bands may cover mostly blank form rows,
+    so text mismatch alone under-rates them. Strong SIFT overlap and a clean exterior
+    distinguish this review case from unrelated copies of the same printed form.
+    """
+    return (
+        p_same >= 0.95
+        and not registration.fallback_used
+        and registration.feature_overlap >= 0.45
+        and 1 <= content.occlusion_candidate_count <= 2
+        and content.occlusion_area_fraction >= 0.25
+        and content.occlusion_residual_capture >= 0.80
+        and content.occlusion_material_median >= 0.01
+        and content.outside_unmatched_ink_union_fraction <= 0.01
+        and content.outside_ink_mismatch_tiles_fraction <= 0.05
+        and content.inside_unmatched_ink_union_fraction <= 0.05
+        and content.occlusion_localization_contrast <= 0.05
+    )
+
+
 def _feature_values(
     registration: Registration,
     change: dict[str, float],
@@ -368,6 +418,16 @@ def pair_probabilities(
     p_same_occluded = p_same * p_occluded_given_same
     p_same_clean = p_same * (1.0 - p_occluded_given_same)
     localized_text_erasure = _localized_text_erasure(content, evidence_config)
+    strong_material_block = _strong_material_block_candidate(
+        p_same=p_same,
+        content=content,
+        occlusion_evidence=occlusion_evidence,
+    )
+    low_text_material = _low_text_material_candidate(
+        p_same=p_same,
+        registration=registration,
+        content=content,
+    )
     return PairProbabilities(
         same_document=p_same,
         occluded_given_same=p_occluded_given_same,
@@ -375,7 +435,10 @@ def pair_probabilities(
         same_occluded=p_same_occluded,
         different_document=1.0 - p_same,
         candidate_flag=(
-            p_same_occluded >= candidate_threshold or localized_text_erasure
+            p_same_occluded >= candidate_threshold
+            or localized_text_erasure
+            or strong_material_block
+            or low_text_material
         ),
         automatic_link_eligible=accepted and not hard_contradiction,
         raw_occluded_given_same=raw_occluded_given_same,
