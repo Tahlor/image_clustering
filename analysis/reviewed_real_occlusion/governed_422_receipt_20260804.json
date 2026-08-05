@@ -1,0 +1,88 @@
+{
+  "calibration": {
+    "audit_status": "inspected_audit",
+    "calibrator_sha256": "82995048b2c9a664061158099617b596c60abf1234dbe10e1bb9206cfa1409be",
+    "promotion": "rejected_for_occlusion_candidate_threshold",
+    "report_sha256": "ab5106e3a65b0bab5652f47484e40b15e18c68923287927f8c043ce9127ed0de"
+  },
+  "config_fingerprint": "525987e7cb709990",
+  "contract": {
+    "accepted_groups": 134,
+    "groups": 200,
+    "images": 422,
+    "negative_pairs": 83,
+    "positive_pairs": 183,
+    "rejected_groups": 66
+  },
+  "git_commit": "11b50db0ee6339a232d643a3f757cdc9ad2086e1",
+  "integrity": {
+    "assignments_csv_sha256": "9358f2019ff2a4fc0d3da00beec5dd1308f4607174cebea89cc07192ad4606dd",
+    "assignments_jsonl_sha256": "868885e8ee6d1243e5a0cb962553c2ba01295b5e9aa3382f984221586656ac26",
+    "integrity_report_sha256": "4fb13bdcf676bbe6565f75010d455d14fddb380fdc8e88a330410116bffc3a23",
+    "sha256_ledger_sha256": "3d23832206f657f28a9201b4fe7841c2b16caa69f70abfc699448a210985eab4"
+  },
+  "outputs_sha256": {
+    "comparisons.jsonl": "7da48d8372c741adfae5131c842321565141f9875cbfd3d8e62bbbd666c77258",
+    "errors.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "groups.jsonl": "74fd050ef74c5a64f7310df995360176e51efb2080de9e547bb4acd18c691ccd",
+    "negative_pairs_evaluated.jsonl": "62c3bd77521fbc95ef4f78377f8bfa2dd2785bba00fd612113214dac57c1420c",
+    "positive_pairs_evaluated.jsonl": "de5ee73b661b4150ba6a68fc8e0070256743f96e828b1286900831373b4d941e"
+  },
+  "promotion_gates": {
+    "exact_cache_replay": true,
+    "external_500_safety_complete": false,
+    "probability_review_only": true,
+    "zero_contaminated_rejected_groups": true,
+    "zero_reviewed_negative_auto_edges": true
+  },
+  "published_report_commit": "f8b78e8e2ed0e6e99c481e69a3ab398640264b74",
+  "run": {
+    "accepted_groups_complete": 38,
+    "cold_seconds": 350.275283575058,
+    "comparisons": 251,
+    "errors": 0,
+    "groups_completed": 200,
+    "negative_auto_edges": 0,
+    "negative_candidates": 70,
+    "positive_auto_edges": 60,
+    "positive_candidates": 130,
+    "rejected_groups_clean": 66
+  },
+  "schema_version": "reviewed-real-governed-422-receipt-v1",
+  "visual_sidecar": {
+    "accepted_group_count": 134,
+    "complete": true,
+    "material_occlusion_metric_group_count": 53,
+    "sha256": "870ce2b47a6dc6d7fd622151ed4e92db0e2da5caacde02f2a8fc1627b0b24c3e",
+    "visual_relationship_counts": {
+      "identical_or_near_identical": 67,
+      "material_physical_occlusion": 49,
+      "mixed_or_multi_state": 4,
+      "same_document_state_or_content_change": 1,
+      "visual_only_overlay": 13
+    }
+  },
+  "warm_replay": {
+    "comparisons.jsonl": {
+      "equal": true,
+      "sha256": "7da48d8372c741adfae5131c842321565141f9875cbfd3d8e62bbbd666c77258"
+    },
+    "errors.json": {
+      "equal": true,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    "groups.jsonl": {
+      "equal": true,
+      "sha256": "74fd050ef74c5a64f7310df995360176e51efb2080de9e547bb4acd18c691ccd"
+    },
+    "metrics_normalized_equal": true,
+    "negative_pairs_evaluated.jsonl": {
+      "equal": true,
+      "sha256": "62c3bd77521fbc95ef4f78377f8bfa2dd2785bba00fd612113214dac57c1420c"
+    },
+    "positive_pairs_evaluated.jsonl": {
+      "equal": true,
+      "sha256": "de5ee73b661b4150ba6a68fc8e0070256743f96e828b1286900831373b4d941e"
+    }
+  }
+}
