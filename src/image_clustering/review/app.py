@@ -77,6 +77,9 @@ main.focus-mode aside{display:none}
 .box.editable{cursor:move}
 .box.selected{border-color:#e8590c;background:rgba(232,89,12,.16);z-index:2}
 .box.draft{border-style:dashed}
+.box.kind-base_page{border-color:#2f9e44;background:rgba(47,158,68,.08)}
+.box.kind-data_bearing_overlay{border-color:#c92a2a;background:rgba(201,42,42,.12)}
+.box.kind-base_page.selected,.box.kind-data_bearing_overlay.selected{border-color:#e8590c}
 .box .tag{position:absolute;top:-1.15rem;left:0;font-size:.66rem;background:#132132;color:#fff;padding:0 .25rem;white-space:nowrap}
 .handle{position:absolute;width:12px;height:12px;background:#fff;border:2px solid #e8590c;border-radius:2px}
 .handle[data-edge=nw]{left:-6px;top:-6px;cursor:nwse-resize}
@@ -326,6 +329,25 @@ function renderProgress() {
 
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
+// Box kinds shared with the cropper: the page of interest and the covering (foreground) sheet.
+const BOX_KIND_LABELS = {base_page: 'page', data_bearing_overlay: 'occluder', reviewer: 'unlabelled'};
+
+// A drawn box is the page until the capture has one, then an occluder; t flips the selected box.
+function newBoxKind(boxes) {
+  return boxes.some((box) => box.kind === 'base_page') ? 'data_bearing_overlay' : 'base_page';
+}
+
+function toggleSelectedBoxKind() {
+  const cluster = currentCluster();
+  const image = focusedImage();
+  if (!state.editing || state.selectedBox === null || !cluster || !image) return;
+  const draft = openDraft(cluster, image);
+  const box = draft.boxes[state.selectedBox];
+  if (!box) return;
+  box.kind = box.kind === 'base_page' ? 'data_bearing_overlay' : 'base_page';
+  commitDraft();
+}
+
 function renderBoxes(stage, image, boxes, editable) {
   for (const node of [...stage.querySelectorAll('.box')]) node.remove();
   boxes.forEach((box, boxIndex) => {
@@ -333,7 +355,7 @@ function renderBoxes(stage, image, boxes, editable) {
     const node = document.createElement('div');
     const selected = editable && state.selectedBox === boxIndex;
     node.className = 'box' + (editable ? ' editable' : '') + (selected ? ' selected' : '')
-      + (hasDraft() ? ' draft' : '');
+      + (hasDraft() ? ' draft' : '') + ` kind-${box.kind || 'reviewer'}`;
     node.style.left = `${(x0 / image.width) * 100}%`;
     node.style.top = `${(y0 / image.height) * 100}%`;
     node.style.width = `${((x1 - x0) / image.width) * 100}%`;
@@ -341,7 +363,7 @@ function renderBoxes(stage, image, boxes, editable) {
     node.dataset.boxIndex = String(boxIndex);
     const tag = document.createElement('span');
     tag.className = 'tag';
-    tag.textContent = `${boxIndex + 1} ${box.kind || 'box'} ${Math.round(x1 - x0)}×${Math.round(y1 - y0)}`;
+    tag.textContent = `${boxIndex + 1} ${BOX_KIND_LABELS[box.kind] || box.kind || 'box'} ${Math.round(x1 - x0)}×${Math.round(y1 - y0)}`;
     node.appendChild(tag);
     if (selected) {
       for (const edge of HANDLES) {
@@ -551,7 +573,7 @@ function attachBoxEditing(stage, cluster, image) {
       draft.boxes.push({
         box_id: `box_${draft.boxes.length + 1}`,
         bbox: [startX, startY, startX + MINIMUM_SIDE, startY + MINIMUM_SIDE],
-        kind: 'reviewer',
+        kind: newBoxKind(draft.boxes),
         origin: 'reviewer',
       });
       boxIndex = draft.boxes.length - 1;
@@ -896,6 +918,7 @@ function bindKeyboard() {
         break;
       }
       case 'Tab': event.preventDefault(); selectNextBox(); break;
+      case 't': case 'T': event.preventDefault(); toggleSelectedBoxKind(); break;
       case 'Enter': event.preventDefault(); if (hasDraft()) commitDraft(); break;
       case 'Escape': event.preventDefault(); exitEditing(); break;
       case 'Delete': case 'Backspace': event.preventDefault(); deleteSelectedBox(); break;
@@ -1026,6 +1049,7 @@ BODY = """
       <tr><td><kbd>e</kbd></td><td>bbox edit mode</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>select next box</td></tr>
       <tr><td><kbd>b</kbd></td><td>approve boxes on capture</td></tr>
+      <tr><td><kbd>t</kbd></td><td>selected box: page of interest ↔ occluder (green / red)</td></tr>
       <tr><td><kbd>Del</kbd></td><td>delete selected box</td></tr>
       <tr><td>arrows</td><td>nudge selected box in edit mode</td></tr>
       <tr><td><kbd>Shift</kbd>+arrows</td><td>resize selected box</td></tr>

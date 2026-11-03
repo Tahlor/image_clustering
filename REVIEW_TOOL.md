@@ -125,6 +125,11 @@ Those are pair-level model and calibration signals, not an accepted-cluster revi
   Setting a relation also sets the status it implies (same-* → `approved`, different → `dissolved`, unsure → `irregular`). A later status change that contradicts the relation (for example `a`/`d`/`i`) clears it; membership edits on a confirmed cluster keep a same-* relation. `null` means the relation was never set, which is true of every decision recorded before this field existed.
 - `primary_view` — which capture is the primary unoccluded view of the (background) document: a member `image_id` (key `p` on the focused capture), `"none"` when no capture shows it unoccluded (key `o`), or `null` when not reviewed. It is independent of status.
 
+Boxes carry a `kind`, which is drawn in its own colour: `base_page` is the page of interest (green), and
+`data_bearing_overlay` is the covering or foreground sheet (red). In edit mode (`e`), the first box drawn on a
+capture is a page and later ones are occluders; `t` flips the selected box between the two. Kinds are stored with
+the boxes in `decisions.json` and the exports.
+
 Both fields are in `decisions.json`, the corrected cluster manifest, and `review_summary.csv`. The status filter has "confirmed, relation not set" and "confirmed, primary view not set" queues for completing a pass. Do not infer a relation from `approved` alone, from crop completeness, or from form-template similarity; a cluster with `relation: null` has no reviewer subtype.
 
 The normal review order is:
