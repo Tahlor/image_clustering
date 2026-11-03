@@ -1,4 +1,4 @@
-"""Reviewer decision state: membership, dissolution, and bbox approval.
+"""Reviewer decision state: membership, dissolution, relation subtype, and bbox approval.
 
 State is a plain JSON-serializable dictionary so it can be persisted and
 inspected without this package. Every mutation returns the affected cluster
@@ -29,6 +29,36 @@ CLUSTER_STATUSES = (
     STATUS_DISSOLVED,
     STATUS_IRREGULAR,
 )
+
+# Relation subtype, kept separate from membership status (see REVIEW_TOOL.md).
+# same_document: literally the same visible document (a re-capture, or the same
+#   sheet with and without a covering occluder).
+# same_background_document: the same underlying base page, but the foreground
+#   sheet differs between captures, so the visible documents are not the same.
+RELATION_SAME_DOCUMENT = "same_document"
+RELATION_SAME_BACKGROUND = "same_background_document"
+RELATION_DIFFERENT = "different_document"
+RELATION_UNSURE = "unsure"
+
+RELATIONS = (
+    RELATION_SAME_DOCUMENT,
+    RELATION_SAME_BACKGROUND,
+    RELATION_DIFFERENT,
+    RELATION_UNSURE,
+)
+
+# The membership status each relation implies; any other status clears the relation.
+RELATION_STATUS = {
+    RELATION_SAME_DOCUMENT: STATUS_APPROVED,
+    RELATION_SAME_BACKGROUND: STATUS_APPROVED,
+    RELATION_DIFFERENT: STATUS_DISSOLVED,
+    RELATION_UNSURE: STATUS_IRREGULAR,
+}
+
+# primary_view records which capture is the primary unoccluded view of the
+# (background) document: a member image id, PRIMARY_VIEW_NONE when no capture
+# is unoccluded, or None when not yet reviewed.
+PRIMARY_VIEW_NONE = "none"
 
 BBOX_STATUS_UNREVIEWED = "unreviewed"
 BBOX_STATUS_APPROVED = "approved"
@@ -62,10 +92,14 @@ def cluster_state(state: dict[str, Any], cluster_id: str) -> dict[str, Any]:
             "dissolved": False,
             "excluded_image_ids": [],
             "images": {},
+            "relation": None,
+            "primary_view": None,
             "updated_at": None,
         }
         clusters[cluster_id] = record
     record.setdefault("cluster_id", cluster_id)
+    record.setdefault("relation", None)
+    record.setdefault("primary_view", None)
     record.setdefault("status", STATUS_UNREVIEWED)
     record.setdefault("dissolved", False)
     record.setdefault("excluded_image_ids", [])
@@ -112,6 +146,22 @@ def included_image_ids(
     ]
 
 
+def _reconcile_relation(cluster: dict[str, Any]) -> dict[str, Any]:
+    """Drop a relation subtype the current membership status contradicts.
+
+    An edited cluster keeps a same-* relation: it is still a confirmed grouping.
+    """
+    relation = cluster.get("relation")
+    if relation is None:
+        return cluster
+    implied = RELATION_STATUS.get(relation)
+    status = cluster.get("status")
+    if status == implied or (implied == STATUS_APPROVED and status == STATUS_EDITED):
+        return cluster
+    cluster["relation"] = None
+    return cluster
+
+
 def _refresh_membership(
     state: dict[str, Any],
     dataset: ReviewDataset,
@@ -140,7 +190,7 @@ def _refresh_membership(
     elif cluster.get("status") in {STATUS_DISSOLVED, STATUS_EDITED}:
         cluster["status"] = STATUS_EDITED
     cluster["updated_at"] = utc_now()
-    return cluster
+    return _reconcile_relation(cluster)
 
 
 def set_membership(
@@ -157,7 +207,7 @@ def set_membership(
     cluster = _refresh_membership(state, dataset, cluster_id)
     if cluster["status"] == STATUS_UNREVIEWED:
         cluster["status"] = STATUS_EDITED
-    return cluster
+    return _reconcile_relation(cluster)
 
 
 def dissolve_cluster(
@@ -175,7 +225,7 @@ def dissolve_cluster(
     cluster["dissolved"] = True
     cluster["status"] = STATUS_DISSOLVED
     cluster["updated_at"] = utc_now()
-    return cluster
+    return _reconcile_relation(cluster)
 
 
 def mark_irregular_cluster(
@@ -189,7 +239,7 @@ def mark_irregular_cluster(
     cluster["dissolved"] = False
     cluster["status"] = STATUS_IRREGULAR
     cluster["updated_at"] = utc_now()
-    return cluster
+    return _reconcile_relation(cluster)
 
 
 def approve_cluster(
@@ -205,7 +255,7 @@ def approve_cluster(
     cluster["dissolved"] = False
     cluster["status"] = STATUS_APPROVED
     cluster["updated_at"] = utc_now()
-    return cluster
+    return _reconcile_relation(cluster)
 
 
 def reopen_cluster(
@@ -221,6 +271,57 @@ def reopen_cluster(
     cluster["excluded_image_ids"] = []
     cluster["dissolved"] = False
     cluster["status"] = STATUS_UNREVIEWED
+    cluster["relation"] = None
+    cluster["primary_view"] = None
+    cluster["updated_at"] = utc_now()
+    return cluster
+
+
+def set_relation(
+    state: dict[str, Any],
+    dataset: ReviewDataset,
+    cluster_id: str,
+    relation: str,
+) -> dict[str, Any]:
+    """Record the relation subtype and the membership status it implies.
+
+    Same-document and same-background relations approve the full grouping,
+    different-document dissolves it, and unsure marks it irregular.
+    """
+    if relation not in RELATIONS:
+        raise ValueError(f"unknown relation: {relation}")
+    status = RELATION_STATUS[relation]
+    if status == STATUS_APPROVED:
+        cluster = approve_cluster(state, dataset, cluster_id)
+    elif status == STATUS_DISSOLVED:
+        cluster = dissolve_cluster(state, dataset, cluster_id)
+    else:
+        cluster = mark_irregular_cluster(state, dataset, cluster_id)
+    cluster["relation"] = relation
+    return cluster
+
+
+def validate_primary_view(value: Any, image_ids: set[str]) -> str | None:
+    """Return a primary_view that is None, PRIMARY_VIEW_NONE, or a member image id."""
+    if value is None or value == PRIMARY_VIEW_NONE:
+        return value
+    if isinstance(value, str) and value in image_ids:
+        return value
+    raise ValueError(
+        f"primary_view must be a member image id or {PRIMARY_VIEW_NONE!r}"
+    )
+
+
+def set_primary_view(
+    state: dict[str, Any],
+    dataset: ReviewDataset,
+    cluster_id: str,
+    primary_view: str | None,
+) -> dict[str, Any]:
+    """Mark which capture is the primary unoccluded view; independent of status."""
+    member_ids = {image.image_id for image in dataset.cluster(cluster_id).images}
+    cluster = cluster_state(state, cluster_id)
+    cluster["primary_view"] = validate_primary_view(primary_view, member_ids)
     cluster["updated_at"] = utc_now()
     return cluster
 
@@ -275,14 +376,20 @@ def restore_cluster(
         for image_id in (record.get("excluded_image_ids") or [])
         if image_id in known_ids
     ]
-    state.setdefault("clusters", {})[cluster_id] = {
+    relation = record.get("relation")
+    if relation is not None and relation not in RELATIONS:
+        raise ValueError(f"unknown relation: {relation}")
+    restored = {
         "cluster_id": cluster_id,
         "status": status,
         "dissolved": bool(record.get("dissolved")),
         "excluded_image_ids": excluded,
         "images": restored_images,
+        "relation": relation,
+        "primary_view": validate_primary_view(record.get("primary_view"), known_ids),
         "updated_at": utc_now(),
     }
+    state.setdefault("clusters", {})[cluster_id] = _reconcile_relation(restored)
     return cluster_state(state, cluster_id)
 
 
@@ -418,6 +525,8 @@ class ClusterProgress:
     bbox_approved_image_count: int
     bbox_edited_image_count: int
     bbox_unreviewed_image_count: int
+    relation_counts: dict[str, int]
+    primary_view_set_count: int
 
     def to_dict(self) -> dict[str, Any]:
         """Convert progress counts to a JSON-serializable dictionary."""
@@ -434,8 +543,14 @@ def progress(state: dict[str, Any], dataset: ReviewDataset) -> ClusterProgress:
         BBOX_STATUS_UNREVIEWED: 0,
     }
     image_total = 0
+    relation_counts = dict.fromkeys(RELATIONS, 0)
+    primary_view_set = 0
     for cluster in dataset.clusters:
         record = cluster_state(state, cluster.cluster_id)
+        if record.get("relation") in relation_counts:
+            relation_counts[record["relation"]] += 1
+        if record.get("primary_view") is not None:
+            primary_view_set += 1
         counts[record.get("status", STATUS_UNREVIEWED)] = (
             counts.get(record.get("status", STATUS_UNREVIEWED), 0) + 1
         )
@@ -465,4 +580,6 @@ def progress(state: dict[str, Any], dataset: ReviewDataset) -> ClusterProgress:
         bbox_approved_image_count=bbox_counts[BBOX_STATUS_APPROVED],
         bbox_edited_image_count=bbox_counts[BBOX_STATUS_EDITED],
         bbox_unreviewed_image_count=bbox_counts[BBOX_STATUS_UNREVIEWED],
+        relation_counts=relation_counts,
+        primary_view_set_count=primary_view_set,
     )

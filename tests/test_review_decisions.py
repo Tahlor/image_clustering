@@ -11,6 +11,7 @@ from image_clustering.review.dataset import (
     review_sort_key,
 )
 from image_clustering.review.decisions import (
+    PRIMARY_VIEW_NONE,
     approve_bboxes,
     approve_cluster,
     cluster_state,
@@ -25,6 +26,8 @@ from image_clustering.review.decisions import (
     restore_cluster,
     set_boxes,
     set_membership,
+    set_primary_view,
+    set_relation,
     validate_box,
 )
 
@@ -341,3 +344,124 @@ def test_restore_cluster_drops_unknown_images_and_exclusions() -> None:
     assert set(restored["images"]) == {
         image.image_id for image in dataset.cluster("cluster_00012").images
     }
+
+
+def test_relation_sets_the_implied_membership_status() -> None:
+    dataset = build_dataset({"same": 2, "background": 2, "different": 2, "unsure": 2})
+    state = empty_state()
+
+    assert set_relation(state, dataset, "same", "same_document")["status"] == "approved"
+    assert (
+        set_relation(state, dataset, "background", "same_background_document")["status"]
+        == "approved"
+    )
+    different = set_relation(state, dataset, "different", "different_document")
+    assert different["status"] == "dissolved"
+    assert different["dissolved"] is True
+    assert set_relation(state, dataset, "unsure", "unsure")["status"] == "irregular"
+
+    counts = progress(state, dataset).relation_counts
+    assert counts == {
+        "same_document": 1,
+        "same_background_document": 1,
+        "different_document": 1,
+        "unsure": 1,
+    }
+
+
+def test_relation_rejects_unknown_values() -> None:
+    dataset = build_dataset({"cluster_00020": 2})
+    with pytest.raises(ValueError):
+        set_relation(empty_state(), dataset, "cluster_00020", "same")
+
+
+def test_contradicting_status_change_clears_the_relation() -> None:
+    dataset = build_dataset({"cluster_00021": 2, "cluster_00022": 3})
+    state = empty_state()
+    set_relation(state, dataset, "cluster_00021", "same_background_document")
+
+    assert dissolve_cluster(state, dataset, "cluster_00021")["relation"] is None
+
+    set_relation(state, dataset, "cluster_00021", "different_document")
+    assert approve_cluster(state, dataset, "cluster_00021")["relation"] is None
+
+    # Editing membership of a confirmed 3-capture cluster keeps a same-* relation.
+    set_relation(state, dataset, "cluster_00022", "same_document")
+    image_id = dataset.cluster("cluster_00022").images[2].image_id
+    edited = set_membership(state, dataset, "cluster_00022", image_id, False)
+    assert edited["status"] == "edited"
+    assert edited["relation"] == "same_document"
+
+
+def test_primary_view_accepts_members_or_none_and_survives_relation_changes() -> None:
+    dataset = build_dataset({"cluster_00023": 2})
+    state = empty_state()
+    first = dataset.cluster("cluster_00023").images[0].image_id
+
+    set_relation(state, dataset, "cluster_00023", "same_document")
+    assert set_primary_view(state, dataset, "cluster_00023", first)["primary_view"] == first
+    assert set_relation(state, dataset, "cluster_00023", "same_background_document")[
+        "primary_view"
+    ] == first
+    assert (
+        set_primary_view(state, dataset, "cluster_00023", PRIMARY_VIEW_NONE)["primary_view"]
+        == "none"
+    )
+    assert progress(state, dataset).primary_view_set_count == 1
+    with pytest.raises(ValueError):
+        set_primary_view(state, dataset, "cluster_00023", "folder/not-a-member.j2k")
+
+
+def test_reopen_clears_relation_and_primary_view() -> None:
+    dataset = build_dataset({"cluster_00024": 2})
+    state = empty_state()
+    first = dataset.cluster("cluster_00024").images[0].image_id
+    set_relation(state, dataset, "cluster_00024", "same_document")
+    set_primary_view(state, dataset, "cluster_00024", first)
+
+    reopened = reopen_cluster(state, dataset, "cluster_00024")
+
+    assert reopened["relation"] is None
+    assert reopened["primary_view"] is None
+
+
+def test_restore_round_trips_relation_and_validates_it() -> None:
+    dataset = build_dataset({"cluster_00025": 2})
+    state = empty_state()
+    first = dataset.cluster("cluster_00025").images[0].image_id
+    set_relation(state, dataset, "cluster_00025", "same_background_document")
+    set_primary_view(state, dataset, "cluster_00025", first)
+    snapshot = {
+        key: value
+        for key, value in cluster_state(state, "cluster_00025").items()
+        if key != "updated_at"
+    }
+    reopen_cluster(state, dataset, "cluster_00025")
+
+    restored = restore_cluster(state, dataset, "cluster_00025", snapshot)
+
+    assert restored["relation"] == "same_background_document"
+    assert restored["primary_view"] == first
+    with pytest.raises(ValueError):
+        restore_cluster(
+            state, dataset, "cluster_00025", {**snapshot, "relation": "bogus"}
+        )
+    with pytest.raises(ValueError):
+        restore_cluster(
+            state,
+            dataset,
+            "cluster_00025",
+            {**snapshot, "primary_view": "folder/not-a-member.j2k"},
+        )
+    # A restored relation that contradicts the restored status is dropped.
+    contradictory = restore_cluster(
+        state, dataset, "cluster_00025", {**snapshot, "status": "dissolved"}
+    )
+    assert contradictory["relation"] is None
+
+
+def test_legacy_decision_records_gain_empty_relation_fields() -> None:
+    state = {"clusters": {"cluster_00026": {"status": "approved"}}}
+    record = cluster_state(state, "cluster_00026")
+    assert record["relation"] is None
+    assert record["primary_view"] is None

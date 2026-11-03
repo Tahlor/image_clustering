@@ -73,6 +73,8 @@ def review_rows(
                     "removed_image_ids": sorted(excluded),
                     "minimum_confidence": cluster.minimum_confidence,
                     "reviewed": status != STATUS_UNREVIEWED,
+                    "relation": record.get("relation"),
+                    "primary_view": record.get("primary_view"),
                 }
             )
         if not is_irregular:
@@ -137,6 +139,8 @@ def review_rows(
                 "review_status": status,
                 "dissolved": dissolved,
                 "reviewed": status != STATUS_UNREVIEWED,
+                "relation": record.get("relation") or "",
+                "primary_view": record.get("primary_view") or "",
                 "minimum_confidence": cluster.minimum_confidence,
                 "bbox_statuses": ";".join(
                     sorted(

@@ -31,6 +31,8 @@ from image_clustering.review.decisions import (
     restore_cluster,
     set_boxes,
     set_membership,
+    set_primary_view,
+    set_relation,
 )
 from image_clustering.review.exports import write_review_exports
 from image_clustering.review.previews import (
@@ -142,6 +144,26 @@ class ReviewService:
         """Classify a grouping as irregular and exclude it from exports."""
         return self._saved(
             {"cluster": mark_irregular_cluster(self.state, self.dataset, cluster_id)}
+        )
+
+    def set_relation(self, cluster_id: str, relation: str) -> dict[str, Any]:
+        """Record the relation subtype and its implied membership status."""
+        return self._saved(
+            {"cluster": set_relation(self.state, self.dataset, cluster_id, relation)}
+        )
+
+    def set_primary_view(
+        self,
+        cluster_id: str,
+        primary_view: str | None,
+    ) -> dict[str, Any]:
+        """Record which capture is the primary unoccluded view."""
+        return self._saved(
+            {
+                "cluster": set_primary_view(
+                    self.state, self.dataset, cluster_id, primary_view
+                )
+            }
         )
 
     def reopen_cluster(self, cluster_id: str) -> dict[str, Any]:
@@ -342,6 +364,20 @@ class ReviewRequestHandler(BaseHTTPRequestHandler):
                     return
                 if action == "reopen":
                     self._send_json(self.service.reopen_cluster(cluster_id))
+                    return
+                if action == "relation":
+                    self._send_json(
+                        self.service.set_relation(
+                            cluster_id, str(payload.get("relation") or "")
+                        )
+                    )
+                    return
+                if action == "primary_view":
+                    self._send_json(
+                        self.service.set_primary_view(
+                            cluster_id, payload.get("primary_view")
+                        )
+                    )
                     return
                 self._send_json({"error": f"unknown action: {action}"}, status=400)
                 return

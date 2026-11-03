@@ -50,6 +50,15 @@ main.focus-mode aside{display:none}
 .status-chip.edited{background:#fdf0cf;border-color:#d8a72a}
 .status-chip.dissolved{background:#fbdcdc;border-color:#c0504d}
 .status-chip.irregular{background:#eee3ff;border-color:#7950f2}
+.relation-chip{display:inline-block;padding:.1rem .5rem;border-radius:1rem;font-size:.75rem;font-weight:700;
+  border:1px dashed #97a9bd;background:#fff}
+.relation-chip.same_document{background:#d8f5e3;border:1px solid #3fa96c}
+.relation-chip.same_background_document{background:#dff0ff;border:1px solid #1f6feb}
+.relation-chip.different_document{background:#fbdcdc;border:1px solid #c0504d}
+.relation-chip.unsure{background:#eee3ff;border:1px solid #7950f2}
+.member.primary{border-color:#d4a106;box-shadow:0 0 0 3px rgba(212,161,6,.35)}
+.primary-badge{padding:.1rem .4rem;border-radius:1rem;background:#ffe9a8;border:1px solid #d4a106;font-weight:700}
+.relation-bar button.relation{font-weight:700}
 .members{display:grid;grid-template-columns:repeat(auto-fit,minmax(19rem,1fr));gap:.8rem;margin-top:.6rem}
 .members.single{grid-template-columns:minmax(0,1fr)}
 .member{border:2px solid #cbd5e1;border-radius:.35rem;padding:.5rem;background:#f8fafc}
@@ -145,7 +154,7 @@ function clusterById(clusterId) {
 }
 
 function emptyDecision() {
-  return {status: 'unreviewed', dissolved: false, excluded_image_ids: [], images: {}};
+  return {status: 'unreviewed', dissolved: false, excluded_image_ids: [], images: {}, relation: null, primary_view: null};
 }
 
 function decisionFor(clusterId) {
@@ -261,9 +270,12 @@ function rebuildQueue() {
   let clusters = state.dataset.clusters.filter((cluster) => {
     const decision = decisionFor(cluster.cluster_id);
     const haystack = `${cluster.cluster_id} ${cluster.source_folder} ${cluster.review_reasons.join(' ')}`.toLowerCase();
+    const confirmed = decision.status === 'approved' || decision.status === 'edited';
     const statusMatch = !statusFilter
       || (statusFilter === 'unreviewed' ? decision.status === 'unreviewed'
         : statusFilter === 'reviewed' ? decision.status !== 'unreviewed'
+        : statusFilter === 'needs-relation' ? confirmed && !decision.relation
+        : statusFilter === 'needs-primary' ? confirmed && !decision.primary_view
         : decision.status === statusFilter);
     return cluster.image_count >= minSize && (!query || haystack.includes(query)) && statusMatch;
   });
@@ -301,7 +313,12 @@ function renderProgress() {
     `${p.reviewed_cluster_count} of ${p.cluster_count} clusters reviewed `
     + `(${p.approved_cluster_count} approved, ${p.edited_cluster_count} edited, `
     + `${p.dissolved_cluster_count} dissolved, ${p.irregular_cluster_count} irregular); `
-    + `${p.bbox_approved_image_count} of ${p.image_count} images with approved boxes`;
+    + `${p.bbox_approved_image_count} of ${p.image_count} images with approved boxes`
+    + (p.relation_counts
+      ? `; relation: ${p.relation_counts.same_document} same doc, ${p.relation_counts.same_background_document} same background, `
+        + `${p.relation_counts.different_document} different, ${p.relation_counts.unsure} unsure; `
+        + `${p.primary_view_set_count} with primary view set`
+      : '');
   el('queue-position').textContent = state.queue.length
     ? `Cluster ${state.index + 1} of ${state.queue.length} in queue`
     : 'No clusters match the filters';
@@ -354,8 +371,9 @@ function renderMemberCard(cluster, image, imageIndex) {
   const boxes = currentBoxes(cluster, image);
   const isFocused = imageIndex === state.focus;
   const editable = state.editing && isFocused;
+  const isPrimary = decisionFor(cluster.cluster_id).primary_view === image.image_id;
   const card = document.createElement('article');
-  card.className = 'member' + (isFocused ? ' focused' : '') + (excluded ? ' excluded' : '');
+  card.className = 'member' + (isFocused ? ' focused' : '') + (excluded ? ' excluded' : '') + (isPrimary ? ' primary' : '');
   card.innerHTML =
     `<div class='member-head'><span><kbd>${imageIndex + 1}</kbd> #${image.sequence_index}</span>`
     + `<span class='name'>${image.filename}</span></div>`
@@ -380,6 +398,13 @@ function renderMemberCard(cluster, image, imageIndex) {
   toggle.textContent = excluded ? 'Excluded' : 'In cluster';
   toggle.addEventListener('click', () => setMembership(cluster, image, excluded));
   foot.appendChild(toggle);
+  const primary = document.createElement('button');
+  primary.type = 'button';
+  primary.setAttribute('aria-pressed', String(isPrimary));
+  primary.title = 'Mark this capture as the primary unoccluded view of the document (key p when focused)';
+  primary.textContent = isPrimary ? '★ Primary unoccluded' : 'Primary view';
+  primary.addEventListener('click', () => setPrimaryView(cluster, isPrimary ? null : image.image_id));
+  foot.appendChild(primary);
   const chip = document.createElement('span');
   chip.className = `bbox-chip ${imageState.bbox_status}`;
   chip.textContent = `boxes ${boxes.length} · ${imageState.bbox_status}`;
@@ -456,7 +481,9 @@ function render() {
   const panel = document.createElement('section');
   panel.className = 'cluster';
   panel.innerHTML =
-    `<h2>${cluster.cluster_id} <span class='status-chip ${decision.status}'>${decision.status}</span></h2>`
+    `<h2>${cluster.cluster_id} <span class='status-chip ${decision.status}'>${decision.status}</span> `
+    + `<span class='relation-chip ${decision.relation || ''}'>${RELATION_LABELS[decision.relation] || 'relation not set'}</span> `
+    + `<span class='relation-chip'>${primaryLabel(cluster, decision)}</span></h2>`
     + `<p class='meta'>${cluster.image_count} captures · folder <code>${cluster.source_folder}</code> · ${confidence}`
     + `${cluster.review_reasons.length ? ` · ${cluster.review_reasons.join('; ')}` : ''}`
     + `${state.viewMode === 'focus' ? ` · capture ${state.focus + 1} of ${cluster.image_count}` : ''}</p>`;
@@ -616,6 +643,54 @@ async function clusterAction(action) {
   else step(1);
 }
 
+const RELATION_LABELS = {
+  same_document: 'same document',
+  same_background_document: 'same background document',
+  different_document: 'different document',
+  unsure: 'unsure',
+};
+
+function primaryLabel(cluster, decision) {
+  if (decision.primary_view === 'none') return 'no unoccluded capture';
+  const index = cluster.images.findIndex((image) => image.image_id === decision.primary_view);
+  return index >= 0 ? `primary view: capture ${index + 1}` : 'primary view not set';
+}
+
+async function postClusterDecision(clusterId, body) {
+  if (hasDraft()) await commitDraft();
+  pushUndo(clusterId);
+  return api(`/api/clusters/${encodeURIComponent(clusterId)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+}
+
+// Same-* relations stay on the cluster so the primary view can be marked next;
+// different/unsure need no primary view and advance at once.
+async function setRelation(relation) {
+  const cluster = currentCluster();
+  if (!cluster) return;
+  const payload = await postClusterDecision(cluster.cluster_id, {action: 'relation', relation});
+  if (relation === 'different_document' || relation === 'unsure' || payload.cluster.primary_view) step(1);
+  else render();
+}
+
+// Marking the primary view finishes a pair once its relation is set, so advance.
+async function setPrimaryView(cluster, primaryView) {
+  const payload = await postClusterDecision(cluster.cluster_id, {action: 'primary_view', primary_view: primaryView});
+  if (primaryView && payload.cluster.relation) step(1);
+  else render();
+}
+
+function primaryFocused() {
+  const cluster = currentCluster();
+  const image = focusedImage();
+  if (!cluster || !image) return;
+  const current = decisionFor(cluster.cluster_id).primary_view;
+  setPrimaryView(cluster, current === image.image_id ? null : image.image_id);
+}
+
 function step(delta) {
   if (!state.queue.length) return;
   if (hasDraft()) commitDraft();
@@ -736,6 +811,15 @@ function bindControls() {
   el('dissolve').addEventListener('click', () => clusterAction('dissolve'));
   el('mark-irregular').addEventListener('click', () => clusterAction('irregular'));
   el('reopen').addEventListener('click', () => clusterAction('reopen'));
+  el('rel-same').addEventListener('click', () => setRelation('same_document'));
+  el('rel-background').addEventListener('click', () => setRelation('same_background_document'));
+  el('rel-different').addEventListener('click', () => setRelation('different_document'));
+  el('rel-unsure').addEventListener('click', () => setRelation('unsure'));
+  el('primary-focused').addEventListener('click', primaryFocused);
+  el('primary-none').addEventListener('click', () => {
+    const cluster = currentCluster();
+    if (cluster) setPrimaryView(cluster, 'none');
+  });
   el('toggle-focused').addEventListener('click', toggleFocused);
   el('view-mode').addEventListener('click', toggleViewMode);
   el('prev-capture').addEventListener('click', () => flipCapture(-1));
@@ -787,6 +871,17 @@ function bindKeyboard() {
       case 'd': case 'D': event.preventDefault(); clusterAction('dissolve'); break;
       case 'i': case 'I': event.preventDefault(); clusterAction('irregular'); break;
       case 'r': case 'R': event.preventDefault(); clusterAction('reopen'); break;
+      case 's': case 'S': event.preventDefault(); setRelation('same_document'); break;
+      case 'g': case 'G': event.preventDefault(); setRelation('same_background_document'); break;
+      case 'n': case 'N': event.preventDefault(); setRelation('different_document'); break;
+      case 'u': case 'U': event.preventDefault(); setRelation('unsure'); break;
+      case 'p': case 'P': event.preventDefault(); primaryFocused(); break;
+      case 'o': case 'O': {
+        event.preventDefault();
+        const cluster = currentCluster();
+        if (cluster) setPrimaryView(cluster, 'none');
+        break;
+      }
       case 'x': case 'X': event.preventDefault(); toggleFocused(); break;
       case 'e': case 'E':
         event.preventDefault();
@@ -860,6 +955,14 @@ BODY = """
     <button type='button' id='undo' title='Undo the last saved change (Ctrl+Z)'>Undo <kbd>Ctrl</kbd>+<kbd>Z</kbd></button>
     <button type='button' id='reopen' title='Return this cluster to unreviewed (key r)'>Reopen <kbd>r</kbd></button>
   </div>
+  <div class='controls relation-bar'>
+    <button type='button' id='rel-same' class='relation' title='Literally the same document: same visible sheet, re-captured or with/without a cover (key s); approves the grouping'>Same document <kbd>s</kbd></button>
+    <button type='button' id='rel-background' class='relation' title='Same underlying base page, but a different foreground sheet on top (key g); approves the grouping'>Same background doc <kbd>g</kbd></button>
+    <button type='button' id='rel-different' class='relation' title='Different documents (key n); dissolves the grouping and advances'>Different <kbd>n</kbd></button>
+    <button type='button' id='rel-unsure' class='relation' title='Cannot tell (key u); marks irregular and advances'>Unsure <kbd>u</kbd></button>
+    <button type='button' id='primary-focused' title='Mark the focused capture as the primary unoccluded view; press again to clear (key p)'>Primary view = focused <kbd>p</kbd></button>
+    <button type='button' id='primary-none' title='No capture shows the document unoccluded (key o)'>No unoccluded view <kbd>o</kbd></button>
+  </div>
   <div class='controls'>
     <button type='button' id='view-mode' aria-pressed='false' title='Switch between side-by-side and full-screen single-capture view (key v)'>View: <span id='view-mode-label'>Side by side</span> <kbd>v</kbd></button>
     <button type='button' id='prev-capture' title='Previous capture in this cluster (Left arrow)'>◀ Capture <kbd>←</kbd></button>
@@ -884,7 +987,9 @@ BODY = """
       <option value=''>all</option><option value='unreviewed'>unreviewed</option>
       <option value='reviewed'>reviewed</option><option value='approved'>approved</option>
       <option value='edited'>edited</option><option value='dissolved'>dissolved</option>
-      <option value='irregular'>irregular</option></select></label>
+      <option value='irregular'>irregular</option>
+      <option value='needs-relation'>confirmed, relation not set</option>
+      <option value='needs-primary'>confirmed, primary view not set</option></select></label>
   </div>
   <span id='save-state' class='save-state ok' role='status' aria-live='polite'>Loading</span>
 </header>
@@ -911,6 +1016,12 @@ BODY = """
       <tr><td><kbd>d</kbd></td><td>dissolve cluster, advance</td></tr>
       <tr><td><kbd>i</kbd></td><td>mark irregular; exclude from training/validation, advance</td></tr>
       <tr><td><kbd>r</kbd></td><td>reopen as unreviewed</td></tr>
+      <tr><td><kbd>s</kbd></td><td>same document (literally the same sheet)</td></tr>
+      <tr><td><kbd>g</kbd></td><td>same background document, different foreground sheet</td></tr>
+      <tr><td><kbd>n</kbd></td><td>different documents, advance</td></tr>
+      <tr><td><kbd>u</kbd></td><td>unsure, advance</td></tr>
+      <tr><td><kbd>p</kbd></td><td>focused capture is the primary unoccluded view (advances once relation is set)</td></tr>
+      <tr><td><kbd>o</kbd></td><td>no capture is unoccluded</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>undo last change</td></tr>
       <tr><td><kbd>e</kbd></td><td>bbox edit mode</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>select next box</td></tr>

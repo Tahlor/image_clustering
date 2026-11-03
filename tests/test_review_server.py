@@ -514,3 +514,53 @@ def test_server_refuses_to_share_a_bound_port(tmp_path: Path) -> None:
             assert "Another review server" in str(error)
     finally:
         running.close()
+
+
+def test_relation_and_primary_view_persist_and_export(tmp_path: Path) -> None:
+    _, output_root = build_run(tmp_path)
+    running = RunningServer(output_root)
+    try:
+        dataset = json.loads(running.get("/api/dataset")[1])
+        cluster = dataset["clusters"][0]
+        cluster_id = cluster["cluster_id"]
+        image_id = cluster["images"][-1]["image_id"]
+
+        payload = running.post(
+            f"/api/clusters/{cluster_id}",
+            {"action": "relation", "relation": "same_background_document"},
+        )
+        assert payload["cluster"]["status"] == "approved"
+        assert payload["progress"]["relation_counts"]["same_background_document"] == 1
+
+        payload = running.post(
+            f"/api/clusters/{cluster_id}",
+            {"action": "primary_view", "primary_view": image_id},
+        )
+        assert payload["cluster"]["primary_view"] == image_id
+        saved = json.loads(Path(payload["decisions_path"]).read_text(encoding="utf-8"))
+        assert saved["clusters"][cluster_id]["relation"] == "same_background_document"
+        assert saved["clusters"][cluster_id]["primary_view"] == image_id
+
+        exported = running.post("/api/export", {})
+        summary = Path(exported["artifacts"]["review_summary"]).read_text(encoding="utf-8")
+        assert "same_background_document" in summary
+        assert image_id in summary
+    finally:
+        running.close()
+
+
+def test_relation_endpoint_rejects_unknown_values(tmp_path: Path) -> None:
+    _, output_root = build_run(tmp_path)
+    running = RunningServer(output_root)
+    try:
+        for body in (
+            {"action": "relation", "relation": "maybe"},
+            {"action": "primary_view", "primary_view": "not-a-member"},
+        ):
+            try:
+                running.post("/api/clusters/cluster_00001", body)
+                raise AssertionError(f"expected a rejection for {body}")
+            except urllib.error.HTTPError as error:
+                assert error.code == 400
+    finally:
+        running.close()
