@@ -158,4 +158,6 @@ image-crop \
 image-review --output_dir /path/to/completed-evaluation
 ```
 
+The model and evaluation labels distinguish `near_duplicate` / `same_document_near_duplicate` from `physical_occlusion` / `same_document_occlusion` at the pair/calibration level. The current interactive review status does **not** preserve that distinction: `Mark OK` records only generic `approved` (with `edited`, `dissolved`, and `irregular` as other dispositions). Do not treat an approved cluster as evidence of either subtype until the review decision/export contract adds one explicitly.
+
 Review decisions and corrected exports are written under `<output_dir>/review_labels/`.
