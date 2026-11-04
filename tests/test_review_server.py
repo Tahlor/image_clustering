@@ -327,7 +327,11 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         assert "previewUrl(image, 'edit')" in page
         assert "image-canvas" in page
         assert ".focus-mode .image-canvas{width:fit-content;max-width:100%}" in page
-        assert "renderBoxes(canvas, image, boxes, editable)" in page
+        assert "renderBoxes(canvas, image, boxes, isFocused)" in page
+        # handles are on every box by default; a click without a drag must not save an edit
+        assert "Handles are always shown" in page
+        assert "if (!moved && mode !== 'create')" in page
+        assert "attachBoxEditing(stage, cluster, image, editable)" in page
         assert "renderBoxes(canvas, image, draft.boxes, true)" in page
         assert "Save boxes" in page
         assert "Releasing the mouse saves automatically." in page
@@ -337,6 +341,28 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         for edge in ("nw", "ne", "sw", "se", "n]", "s]", "w]", "e]"):
             assert edge in page
         assert "data-edge=" in page
+    finally:
+        running.close()
+
+
+def test_box_polygon_is_served_and_dropped_when_box_is_edited(tmp_path: Path) -> None:
+    _, output_root = build_run(tmp_path)
+    crops = output_root / "reports" / "crops_for_recognizer.jsonl"
+    row = json.loads(crops.read_text(encoding="utf-8"))
+    row["polygon"] = [[5, 6], [60, 6], [60, 70], [5, 70]]
+    crops.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    running = RunningServer(output_root)
+    try:
+        dataset = json.loads(running.get("/api/dataset")[1])
+        cluster = dataset["clusters"][0]
+        image = next(i for i in cluster["images"] if i["boxes"])
+        assert image["boxes"][0]["polygon"] == [[5, 6], [60, 6], [60, 70], [5, 70]]
+        # a reviewer edit stores the box without the (now stale) outline
+        saved = running.post(
+            f"/api/clusters/{cluster['cluster_id']}/images/{image['image_id']}/boxes",
+            {"boxes": [{**image["boxes"][0], "bbox": [10, 10, 50, 60]}]},
+        )
+        assert "polygon" not in saved["image"]["boxes"][0]
     finally:
         running.close()
 

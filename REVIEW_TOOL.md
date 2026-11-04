@@ -126,9 +126,15 @@ Those are pair-level model and calibration signals, not an accepted-cluster revi
 - `primary_view` — which capture is the primary unoccluded view of the (background) document: a member `image_id` (key `p` on the focused capture), `"none"` when no capture shows it unoccluded (key `o`), or `null` when not reviewed. It is independent of status.
 
 Boxes carry a `kind`, which is drawn in its own colour: `base_page` is the page of interest (green), and
-`data_bearing_overlay` is the covering or foreground sheet (red). In edit mode (`e`), the first box drawn on a
-capture is a page and later ones are occluders; `t` flips the selected box between the two. Kinds are stored with
-the boxes in `decisions.json` and the exports.
+`data_bearing_overlay` is the covering or foreground sheet (red). Every box shows its eight resize handles by
+default: drag a handle to resize, or drag the box body to move it, with no mode needed. A click without a drag only
+selects, so it saves nothing. Drawing a new box needs draw mode (`e`); the first box drawn on a capture is a page
+and later ones are occluders. `t` flips the selected box between the two kinds. Kinds are stored with the boxes in
+`decisions.json` and the exports.
+
+A proposal row in `reports/crops_for_recognizer.jsonl` may carry a `polygon` (`[[x, y], ...]` in source pixels,
+for example a SAM segmentation). It is drawn as a dashed outline while its box is unchanged. Editing the box drops
+the outline, because it no longer matches.
 
 Both fields are in `decisions.json`, the corrected cluster manifest, and `review_summary.csv`. The status filter has "confirmed, relation not set" and "confirmed, primary view not set" queues for completing a pass. Do not infer a relation from `approved` alone, from crop completeness, or from form-template similarity; a cluster with `relation: null` has no reviewer subtype.
 

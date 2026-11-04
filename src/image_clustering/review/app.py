@@ -81,15 +81,23 @@ main.focus-mode aside{display:none}
 .box.kind-data_bearing_overlay{border-color:#c92a2a;background:rgba(201,42,42,.12)}
 .box.kind-base_page.selected,.box.kind-data_bearing_overlay.selected{border-color:#e8590c}
 .box .tag{position:absolute;top:-1.15rem;left:0;font-size:.66rem;background:#132132;color:#fff;padding:0 .25rem;white-space:nowrap}
-.handle{position:absolute;width:12px;height:12px;background:#fff;border:2px solid #e8590c;border-radius:2px}
-.handle[data-edge=nw]{left:-6px;top:-6px;cursor:nwse-resize}
-.handle[data-edge=ne]{right:-6px;top:-6px;cursor:nesw-resize}
-.handle[data-edge=sw]{left:-6px;bottom:-6px;cursor:nesw-resize}
-.handle[data-edge=se]{right:-6px;bottom:-6px;cursor:nwse-resize}
-.handle[data-edge=n]{left:50%;top:-6px;margin-left:-6px;cursor:ns-resize}
-.handle[data-edge=s]{left:50%;bottom:-6px;margin-left:-6px;cursor:ns-resize}
-.handle[data-edge=w]{left:-6px;top:50%;margin-top:-6px;cursor:ew-resize}
-.handle[data-edge=e]{right:-6px;top:50%;margin-top:-6px;cursor:ew-resize}
+.handle{position:absolute;width:14px;height:14px;background:#fff;border:2px solid #1f6feb;border-radius:3px;z-index:3}
+.box.kind-base_page .handle{border-color:#2f9e44}
+.box.kind-data_bearing_overlay .handle{border-color:#c92a2a}
+.box.selected .handle{border-color:#e8590c;background:#ffe8d9}
+.box.direct{cursor:move}
+.poly-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.poly-layer polygon{fill:none;stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-dasharray:6 3}
+.poly-layer polygon.kind-base_page{stroke:#2f9e44}
+.poly-layer polygon.kind-data_bearing_overlay{stroke:#c92a2a}
+.handle[data-edge=nw]{left:-7px;top:-7px;cursor:nwse-resize}
+.handle[data-edge=ne]{right:-7px;top:-7px;cursor:nesw-resize}
+.handle[data-edge=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}
+.handle[data-edge=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
+.handle[data-edge=n]{left:50%;top:-7px;margin-left:-7px;cursor:ns-resize}
+.handle[data-edge=s]{left:50%;bottom:-7px;margin-left:-7px;cursor:ns-resize}
+.handle[data-edge=w]{left:-7px;top:50%;margin-top:-7px;cursor:ew-resize}
+.handle[data-edge=e]{right:-7px;top:50%;margin-top:-7px;cursor:ew-resize}
 .member-foot{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;font-size:.75rem}
 .bbox-chip{padding:.1rem .4rem;border-radius:1rem;border:1px solid #97a9bd;background:#fff;font-weight:700}
 .bbox-chip.approved{background:#d8f5e3;border-color:#3fa96c}
@@ -175,7 +183,7 @@ function isExcluded(clusterId, imageId) {
 function savedBoxes(cluster, image) {
   const decision = imageDecision(cluster.cluster_id, image.image_id);
   const boxes = decision.boxes === null || decision.boxes === undefined ? image.boxes : decision.boxes;
-  return boxes.map((box) => ({...box, bbox: [...box.bbox]}));
+  return boxes.map((box) => ({...box, bbox: [...box.bbox], polygon_bbox: box.polygon_bbox || (box.polygon ? [...box.bbox] : null)}));
 }
 
 // Single source of truth for geometry: the draft when one is open for this
@@ -340,7 +348,7 @@ function newBoxKind(boxes) {
 function toggleSelectedBoxKind() {
   const cluster = currentCluster();
   const image = focusedImage();
-  if (!state.editing || state.selectedBox === null || !cluster || !image) return;
+  if (state.selectedBox === null || !cluster || !image) return;
   const draft = openDraft(cluster, image);
   const box = draft.boxes[state.selectedBox];
   if (!box) return;
@@ -348,13 +356,33 @@ function toggleSelectedBoxKind() {
   commitDraft();
 }
 
+// Segmentation outlines (e.g. SAM) are drawn only while their box is unchanged; an edited box makes them stale.
+function renderPolygons(stage, image, boxes) {
+  for (const node of [...stage.querySelectorAll('.poly-layer')]) node.remove();
+  const shapes = boxes.filter((box) => box.polygon && box.polygon.length >= 3 && box.polygon_bbox
+    && box.polygon_bbox.every((value, index) => Math.abs(value - box.bbox[index]) < 1));
+  if (!shapes.length) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'poly-layer');
+  svg.setAttribute('viewBox', `0 0 ${image.width} ${image.height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  for (const box of shapes) {
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    shape.setAttribute('points', box.polygon.map((point) => point.join(',')).join(' '));
+    shape.setAttribute('class', `kind-${box.kind}`);
+    svg.appendChild(shape);
+  }
+  stage.appendChild(svg);
+}
+
 function renderBoxes(stage, image, boxes, editable) {
   for (const node of [...stage.querySelectorAll('.box')]) node.remove();
+  renderPolygons(stage, image, boxes);
   boxes.forEach((box, boxIndex) => {
     const [x0, y0, x1, y1] = box.bbox;
     const node = document.createElement('div');
     const selected = editable && state.selectedBox === boxIndex;
-    node.className = 'box' + (editable ? ' editable' : '') + (selected ? ' selected' : '')
+    node.className = 'box direct' + (editable ? ' editable' : '') + (selected ? ' selected' : '')
       + (hasDraft() ? ' draft' : '') + ` kind-${box.kind || 'reviewer'}`;
     node.style.left = `${(x0 / image.width) * 100}%`;
     node.style.top = `${(y0 / image.height) * 100}%`;
@@ -365,7 +393,8 @@ function renderBoxes(stage, image, boxes, editable) {
     tag.className = 'tag';
     tag.textContent = `${boxIndex + 1} ${BOX_KIND_LABELS[box.kind] || box.kind || 'box'} ${Math.round(x1 - x0)}×${Math.round(y1 - y0)}`;
     node.appendChild(tag);
-    if (selected) {
+    {
+      // Handles are always shown: one drag on any box edits it, no edit mode needed.
       for (const edge of HANDLES) {
         const handle = document.createElement('span');
         handle.className = 'handle';
@@ -411,7 +440,7 @@ function renderMemberCard(cluster, image, imageIndex) {
   picture.src = previewUrl(image, 'edit');
   picture.draggable = false;
   canvas.appendChild(picture);
-  if (image.width && image.height) renderBoxes(canvas, image, boxes, editable);
+  if (image.width && image.height) renderBoxes(canvas, image, boxes, isFocused);
   const foot = card.querySelector('.member-foot');
   const toggle = document.createElement('button');
   toggle.type = 'button';
@@ -451,7 +480,7 @@ function renderMemberCard(cluster, image, imageIndex) {
       render();
     }
   });
-  if (editable && image.width && image.height) attachBoxEditing(stage, cluster, image);
+  if (image.width && image.height) attachBoxEditing(stage, cluster, image, editable);
   return card;
 }
 
@@ -550,14 +579,17 @@ function resizeBox(bbox, edge, x, y, image) {
   return box;
 }
 
-function attachBoxEditing(stage, cluster, image) {
+function attachBoxEditing(stage, cluster, image, canDraw) {
   const canvas = stage.querySelector('.image-canvas');
   stage.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    event.preventDefault();
-    const draft = openDraft(cluster, image);
     const boxNode = event.target.closest('.box');
     const handle = event.target.classList.contains('handle') ? event.target : null;
+    // Outside edit mode a press on bare image only focuses the capture; boxes and handles still drag.
+    if (!canDraw && !boxNode && !handle) return;
+    event.preventDefault();
+    const freshDraft = !(state.draft && state.draft.clusterId === cluster.cluster_id && state.draft.imageId === image.image_id);
+    const draft = openDraft(cluster, image);
     const [startX, startY] = stageToImage(stage, image, event.clientX, event.clientY);
     let mode = 'create';
     let edge = 'se';
@@ -579,6 +611,7 @@ function attachBoxEditing(stage, cluster, image) {
       boxIndex = draft.boxes.length - 1;
     }
     state.selectedBox = boxIndex;
+    state.focus = Math.max(0, cluster.images.findIndex((item) => item.image_id === image.image_id));
     state.dragging = true;
     // Read the anchor from the draft at drag start, so a drag that follows an
     // earlier edit continues from the current geometry rather than a stale copy.
@@ -617,6 +650,12 @@ function attachBoxEditing(stage, cluster, image) {
         draft.boxes.splice(boxIndex, 1);
         state.selectedBox = null;
         if (!moved) { render(); return; }
+      }
+      // A click without a drag only selects: it must not save an unchanged box set as an edit.
+      if (!moved && mode !== 'create') {
+        if (freshDraft) { state.draft = null; }
+        render();
+        return;
       }
       commitDraft();
     };
@@ -924,21 +963,21 @@ function bindKeyboard() {
       case 'Delete': case 'Backspace': event.preventDefault(); deleteSelectedBox(); break;
       case 'ArrowRight':
         event.preventDefault();
-        if (state.editing && state.selectedBox !== null) nudgeSelectedBox(1, 0, event.shiftKey);
+        if (state.selectedBox !== null) nudgeSelectedBox(1, 0, event.shiftKey);
         else flipCapture(1);
         break;
       case 'ArrowLeft':
         event.preventDefault();
-        if (state.editing && state.selectedBox !== null) nudgeSelectedBox(-1, 0, event.shiftKey);
+        if (state.selectedBox !== null) nudgeSelectedBox(-1, 0, event.shiftKey);
         else flipCapture(-1);
         break;
       case 'ArrowDown':
         event.preventDefault();
-        if (state.editing && state.selectedBox !== null) nudgeSelectedBox(0, 1, event.shiftKey);
+        if (state.selectedBox !== null) nudgeSelectedBox(0, 1, event.shiftKey);
         break;
       case 'ArrowUp':
         event.preventDefault();
-        if (state.editing && state.selectedBox !== null) nudgeSelectedBox(0, -1, event.shiftKey);
+        if (state.selectedBox !== null) nudgeSelectedBox(0, -1, event.shiftKey);
         break;
       default: break;
     }
@@ -1046,7 +1085,7 @@ BODY = """
       <tr><td><kbd>p</kbd></td><td>focused capture is the primary unoccluded view (advances once relation is set)</td></tr>
       <tr><td><kbd>o</kbd></td><td>no capture is unoccluded</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>undo last change</td></tr>
-      <tr><td><kbd>e</kbd></td><td>bbox edit mode</td></tr>
+      <tr><td><kbd>e</kbd></td><td>draw mode (drag on the image to add a box); existing boxes are always draggable by their handles</td></tr>
       <tr><td><kbd>Tab</kbd></td><td>select next box</td></tr>
       <tr><td><kbd>b</kbd></td><td>approve boxes on capture</td></tr>
       <tr><td><kbd>t</kbd></td><td>selected box: page of interest ↔ occluder (green / red)</td></tr>

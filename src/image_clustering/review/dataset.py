@@ -27,6 +27,8 @@ class ReviewBox:
     confidence: float
     crop_path: Path | None
     review_required: bool
+    # Optional segmentation outline [[x, y], ...] in source pixels (e.g. SAM); display only, never edited.
+    polygon: tuple[tuple[int, int], ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the box to a JSON-serializable dictionary."""
@@ -40,6 +42,7 @@ class ReviewBox:
             "crop_path": str(self.crop_path) if self.crop_path else None,
             "review_required": self.review_required,
             "origin": "automatic",
+            "polygon": [list(point) for point in self.polygon] if self.polygon else None,
         }
 
 
@@ -182,6 +185,9 @@ def _boxes_by_source(output_root: Path) -> dict[str, list[ReviewBox]]:
                 confidence=float(row.get("confidence") or 0.0),
                 crop_path=Path(crop_path) if crop_path else None,
                 review_required=bool(row.get("review_required")),
+                polygon=tuple(
+                    (int(point[0]), int(point[1])) for point in row["polygon"]
+                ) if row.get("polygon") else None,
             )
         )
     return boxes
