@@ -93,6 +93,8 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 21rem;gap:1rem;padding:1re
 .zoom-chip{position:absolute;top:.2rem;right:.4rem;z-index:6;font-size:.72rem;padding:.1rem .45rem;background:rgba(17,26,36,.85);
   color:#fff;border-color:#46607a}
 .zoom-chip:hover{background:#111a24}
+.draw-hint{position:absolute;left:50%;top:2.2rem;transform:translateX(-50%);z-index:5;max-width:90%;padding:.35rem .7rem;border-radius:.4rem;
+  background:rgba(31,111,235,.92);color:#fff;font-size:.8rem;font-weight:600;line-height:1.35;text-align:center;pointer-events:none}
 .member-foot{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:.45rem .6rem;font-size:.78rem}
 .member-foot a{color:var(--muted);margin-left:auto}
 .member-foot button{font-size:.78rem;padding:.25rem .5rem}
@@ -568,7 +570,7 @@ function renderBoxPanel(cluster) {
   const boxes = currentBoxes(cluster, image);
   const status = imageDecision(cluster.cluster_id, image.image_id).bbox_status;
   if (!boxes.length) {
-    list.innerHTML = "<div class='empty-boxes'>No boxes. Press <kbd>e</kbd> and drag on the image to draw one.</div>";
+    list.innerHTML = "<div class='empty-boxes'>No boxes on this capture. Drag on the image to draw one: the first is the page of interest (green), the next ones are occluders (red).</div>";
   }
   boxes.forEach((box, boxIndex) => {
     const kind = kindOf(box);
@@ -604,7 +606,8 @@ function renderMemberCard(cluster, image, imageIndex) {
   const imageState = imageDecision(cluster.cluster_id, image.image_id);
   const boxes = currentBoxes(cluster, image);
   const isFocused = imageIndex === state.focus;
-  const editable = state.editing && isFocused;
+  // A capture with no boxes needs no mode switch: dragging on it draws the first one.
+  const editable = isFocused && (state.editing || boxes.length === 0);
   const isPrimary = decisionFor(cluster.cluster_id).primary_view === image.image_id;
   const card = document.createElement('article');
   card.className = 'member' + (isFocused ? ' focused' : '') + (excluded ? ' excluded' : '') + (isPrimary ? ' primary' : '');
@@ -629,6 +632,14 @@ function renderMemberCard(cluster, image, imageIndex) {
   picture.draggable = false;
   canvas.appendChild(picture);
   if (image.width && image.height) renderBoxes(canvas, image, boxes, isFocused);
+  if (!boxes.length) {
+    const hint = document.createElement('div');
+    hint.className = 'draw-hint';
+    hint.textContent = isFocused
+      ? 'No boxes yet: drag on the image to draw the page of interest. Press e and drag again for each sheet on top.'
+      : 'No boxes yet: click this capture, then drag on it to draw one.';
+    stage.appendChild(hint);
+  }
   const foot = card.querySelector('.member-foot');
   const toggle = document.createElement('button');
   toggle.type = 'button';

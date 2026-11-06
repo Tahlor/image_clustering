@@ -179,17 +179,30 @@ def test_mark_remaining_clusters_ok_only_touches_unreviewed_clusters() -> None:
     assert counts.approved_cluster_count == 2
 
 
-def test_bbox_approval_is_independent_of_cluster_approval() -> None:
+def test_approving_a_cluster_approves_and_pins_its_unreviewed_boxes() -> None:
     dataset = build_dataset({"cluster_00006": 2})
     state = empty_state()
-    image_id = dataset.cluster("cluster_00006").images[0].image_id
+    first, second = (image.image_id for image in dataset.cluster("cluster_00006").images)
+    set_boxes(state, dataset, "cluster_00006", second, [{"bbox": [10, 20, 300, 400], "kind": "base_page"}])
 
     approve_cluster(state, dataset, "cluster_00006")
 
+    record = image_state(state, "cluster_00006", first)
+    assert record["bbox_status"] == "approved"
+    proposals = dataset.cluster("cluster_00006").images[0].boxes
+    assert [box["bbox"] for box in record["boxes"]] == [list(box.bbox) for box in proposals]
+    # an edited box set keeps its status and boxes
+    assert image_state(state, "cluster_00006", second)["bbox_status"] == "edited"
+    assert image_state(state, "cluster_00006", second)["boxes"][0]["bbox"] == [10, 20, 300, 400]
+
+
+def test_dissolving_a_cluster_leaves_its_boxes_unreviewed() -> None:
+    dataset = build_dataset({"cluster_00006": 2})
+    state = empty_state()
+    image_id = dataset.cluster("cluster_00006").images[0].image_id
+    dissolve_cluster(state, dataset, "cluster_00006")
     assert image_state(state, "cluster_00006", image_id)["bbox_status"] == "unreviewed"
-    approve_bboxes(state, dataset, "cluster_00006", image_id)
-    assert image_state(state, "cluster_00006", image_id)["bbox_status"] == "approved"
-    assert cluster_state(state, "cluster_00006")["status"] == "approved"
+    assert image_state(state, "cluster_00006", image_id)["boxes"] is None
 
 
 def test_editing_boxes_marks_bboxes_edited_without_approving_the_cluster() -> None:
@@ -518,3 +531,13 @@ def test_an_optional_box_keeps_its_flag() -> None:
                        [{"bbox": [10, 20, 300, 400], "optional": True}, {"bbox": [10, 20, 30, 40]}])
     assert record["boxes"][0]["optional"] is True
     assert "optional" not in record["boxes"][1]
+
+
+def test_approving_boxes_pins_them_and_unapproving_returns_to_the_proposals() -> None:
+    dataset = build_dataset({"cluster_00006": 2})
+    state = empty_state()
+    image_id = dataset.cluster("cluster_00006").images[0].image_id
+    record = approve_bboxes(state, dataset, "cluster_00006", image_id)
+    assert record["bbox_status"] == "approved" and record["boxes"] is not None
+    record = approve_bboxes(state, dataset, "cluster_00006", image_id, approved=False)
+    assert record["bbox_status"] == "unreviewed" and record["boxes"] is None

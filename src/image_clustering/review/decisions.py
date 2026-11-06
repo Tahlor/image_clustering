@@ -249,15 +249,39 @@ def approve_cluster(
     dataset: ReviewDataset,
     cluster_id: str,
 ) -> dict[str, Any]:
-    """Confirm the grouping exactly as the algorithm produced it."""
+    """Confirm the grouping exactly as the algorithm produced it.
+
+    Approving a cluster also vouches for the boxes the reviewer was looking at: each
+    capture whose box set is still unreviewed is approved, and its proposals are
+    copied into the decision so that regenerating proposals later cannot change
+    what was approved. Edited box sets are left as they are. A dissolved cluster's
+    boxes stay unreviewed.
+    """
     cluster = cluster_state(state, cluster_id)
     for image in dataset.cluster(cluster_id).images:
-        image_state(state, cluster_id, image.image_id)["included"] = True
+        record = image_state(state, cluster_id, image.image_id)
+        record["included"] = True
+        if record.get("bbox_status", BBOX_STATUS_UNREVIEWED) == BBOX_STATUS_UNREVIEWED:
+            _pin_proposals(record, image)
     cluster["excluded_image_ids"] = []
     cluster["dissolved"] = False
     cluster["status"] = STATUS_APPROVED
     cluster["updated_at"] = utc_now()
     return _reconcile_relation(cluster)
+
+
+def _pin_proposals(record: dict[str, Any], image: Any) -> None:
+    """Approve an image's box set, copying the automatic boxes in if none were saved."""
+    if record.get("boxes") is None:
+        try:
+            record["boxes"] = [
+                normalize_box(box.to_dict(), index, image.width, image.height)
+                for index, box in enumerate(image.boxes)
+            ]
+        except ValueError:
+            return  # an unusable proposal stays unreviewed rather than approved
+        record["pinned"] = True
+    record["bbox_status"] = BBOX_STATUS_APPROVED
 
 
 def reopen_cluster(
@@ -383,6 +407,8 @@ def restore_cluster(
             "bbox_status": str(incoming.get("bbox_status") or BBOX_STATUS_UNREVIEWED),
             "boxes": normalized_boxes,
         }
+        if incoming.get("pinned") and normalized_boxes is not None:
+            restored_images[image.image_id]["pinned"] = True
     excluded = [
         image_id
         for image_id in (record.get("excluded_image_ids") or [])
@@ -511,6 +537,7 @@ def set_boxes(
         normalized.append(normalize_box(payload, index, image.width, image.height))
     record = image_state(state, cluster_id, image_id)
     record["boxes"] = normalized
+    record.pop("pinned", None)
     record["bbox_status"] = BBOX_STATUS_EDITED
     cluster_state(state, cluster_id)["updated_at"] = utc_now()
     return record
@@ -523,12 +550,19 @@ def approve_bboxes(
     image_id: str,
     approved: bool = True,
 ) -> dict[str, Any]:
-    """Approve or unapprove the bbox set for one image."""
-    dataset.image(cluster_id, image_id)
+    """Approve or unapprove the bbox set for one image.
+
+    Approving pins the proposals on screen (see _pin_proposals); unapproving a pinned
+    set returns it to the live proposals, unreviewed.
+    """
+    image = dataset.image(cluster_id, image_id)
     record = image_state(state, cluster_id, image_id)
     if approved:
+        _pin_proposals(record, image)
         record["bbox_status"] = BBOX_STATUS_APPROVED
     else:
+        if record.pop("pinned", False):
+            record["boxes"] = None
         record["bbox_status"] = (
             BBOX_STATUS_EDITED
             if record.get("boxes") is not None
