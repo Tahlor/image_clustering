@@ -31,6 +31,7 @@ from image_clustering.review.decisions import (
     restore_cluster,
     set_boxes,
     set_membership,
+    set_optional,
     set_primary_view,
     set_relation,
 )
@@ -164,6 +165,12 @@ class ReviewService:
                     self.state, self.dataset, cluster_id, primary_view
                 )
             }
+        )
+
+    def set_optional(self, cluster_id: str, optional: bool) -> dict[str, Any]:
+        """Flag a cluster as an optional (poor but correct) example."""
+        return self._saved(
+            {"cluster": set_optional(self.state, self.dataset, cluster_id, optional)}
         )
 
     def reopen_cluster(self, cluster_id: str) -> dict[str, Any]:
@@ -376,6 +383,13 @@ class ReviewRequestHandler(BaseHTTPRequestHandler):
                     self._send_json(
                         self.service.set_primary_view(
                             cluster_id, payload.get("primary_view")
+                        )
+                    )
+                    return
+                if action == "optional":
+                    self._send_json(
+                        self.service.set_optional(
+                            cluster_id, bool(payload.get("optional"))
                         )
                     )
                     return

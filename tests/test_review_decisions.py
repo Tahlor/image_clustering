@@ -26,6 +26,7 @@ from image_clustering.review.decisions import (
     restore_cluster,
     set_boxes,
     set_membership,
+    set_optional,
     set_primary_view,
     set_relation,
     validate_box,
@@ -493,3 +494,27 @@ def test_legacy_decision_records_gain_empty_relation_fields() -> None:
     record = cluster_state(state, "cluster_00026")
     assert record["relation"] is None
     assert record["primary_view"] is None
+
+
+def test_optional_flag_is_independent_of_the_decision_and_cleared_by_reopen() -> None:
+    dataset = build_dataset({"cluster_00007": 2})
+    state = empty_state()
+    set_relation(state, dataset, "cluster_00007", "same_background_document")
+    record = set_optional(state, dataset, "cluster_00007", True)
+    assert record["optional"] is True
+    assert record["relation"] == "same_background_document"
+    assert progress(state, dataset).optional_cluster_count == 1
+    snapshot = dict(cluster_state(state, "cluster_00007"))
+    reopen_cluster(state, dataset, "cluster_00007")
+    assert cluster_state(state, "cluster_00007")["optional"] is False
+    restore_cluster(state, dataset, "cluster_00007", snapshot)
+    assert cluster_state(state, "cluster_00007")["optional"] is True
+
+
+def test_an_optional_box_keeps_its_flag() -> None:
+    dataset = build_dataset({"cluster_00007": 2})
+    image_id = dataset.cluster("cluster_00007").images[0].image_id
+    record = set_boxes(empty_state(), dataset, "cluster_00007", image_id,
+                       [{"bbox": [10, 20, 300, 400], "optional": True}, {"bbox": [10, 20, 30, 40]}])
+    assert record["boxes"][0]["optional"] is True
+    assert "optional" not in record["boxes"][1]

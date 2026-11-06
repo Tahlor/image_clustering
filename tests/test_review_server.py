@@ -321,8 +321,10 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         assert "exclude from training/validation" in page
         assert "clusterAction('irregular')" in page
         assert "id='draft-banner'" in page
-        assert ".draft-banner[hidden]{display:flex !important" in page
-        assert "height:3.4rem;overflow:auto" in page
+        # the unsaved-edit bar floats, so it never shifts the captures
+        assert ".draft-banner{position:fixed" in page
+        assert "id='optional'" in page and "action: 'optional'" in page
+        assert "class='legend-strip'" in page
         assert "large || isFocused ? 'edit' : 'thumbnail'" not in page
         assert "previewUrl(image, 'edit')" in page
         assert "image-canvas" in page
@@ -336,7 +338,7 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         assert "Save boxes" in page
         assert "Releasing the mouse saves automatically." in page
         assert "id='undo'" in page
-        for key in ("v", "i", "Tab", "Enter", "Esc", "Ctrl", "Z"):
+        for key in ("v", "i", "Tab", "Enter", "Esc", "Ctrl", "Z", "l", "w"):
             assert f"<kbd>{key}</kbd>" in page
         # corners move freely (trapezoids), Shift keeps a rectangle, and a loupe follows the drag
         assert "function dragCorner(quad, corner, x, y, keepRect)" in page
@@ -599,5 +601,17 @@ def test_relation_endpoint_rejects_unknown_values(tmp_path: Path) -> None:
                 raise AssertionError(f"expected a rejection for {body}")
             except urllib.error.HTTPError as error:
                 assert error.code == 400
+    finally:
+        running.close()
+
+
+def test_optional_action_flags_the_cluster(tmp_path: Path) -> None:
+    _, output_root = build_run(tmp_path)
+    running = RunningServer(output_root)
+    try:
+        cluster_id = json.loads(running.get("/api/dataset")[1])["clusters"][0]["cluster_id"]
+        saved = running.post(f"/api/clusters/{cluster_id}", {"action": "optional", "optional": True})
+        assert saved["cluster"]["optional"] is True
+        assert saved["progress"]["optional_cluster_count"] == 1
     finally:
         running.close()

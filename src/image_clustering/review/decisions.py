@@ -94,12 +94,14 @@ def cluster_state(state: dict[str, Any], cluster_id: str) -> dict[str, Any]:
             "images": {},
             "relation": None,
             "primary_view": None,
+            "optional": False,
             "updated_at": None,
         }
         clusters[cluster_id] = record
     record.setdefault("cluster_id", cluster_id)
     record.setdefault("relation", None)
     record.setdefault("primary_view", None)
+    record.setdefault("optional", False)
     record.setdefault("status", STATUS_UNREVIEWED)
     record.setdefault("dissolved", False)
     record.setdefault("excluded_image_ids", [])
@@ -273,6 +275,24 @@ def reopen_cluster(
     cluster["status"] = STATUS_UNREVIEWED
     cluster["relation"] = None
     cluster["primary_view"] = None
+    cluster["optional"] = False
+    cluster["updated_at"] = utc_now()
+    return cluster
+
+
+def set_optional(
+    state: dict[str, Any],
+    dataset: ReviewDataset,
+    cluster_id: str,
+    optional: bool,
+) -> dict[str, Any]:
+    """Flag a cluster as optional: technically right but a poor example (say a blank
+    sheet on a blank page). A model gets credit for finding it and no penalty for a
+    miss. Independent of status and relation.
+    """
+    dataset.cluster(cluster_id)
+    cluster = cluster_state(state, cluster_id)
+    cluster["optional"] = bool(optional)
     cluster["updated_at"] = utc_now()
     return cluster
 
@@ -379,6 +399,7 @@ def restore_cluster(
         "images": restored_images,
         "relation": relation,
         "primary_view": validate_primary_view(record.get("primary_view"), known_ids),
+        "optional": bool(record.get("optional")),
         "updated_at": utc_now(),
     }
     state.setdefault("clusters", {})[cluster_id] = _reconcile_relation(restored)
@@ -462,6 +483,9 @@ def normalize_box(
     }
     if polygon is not None:
         box["polygon"] = polygon
+    # Optional: a real box that is a poor example (blank on blank); not penalized when missed.
+    if payload.get("optional"):
+        box["optional"] = True
     for key in ("completeness", "confidence"):
         if payload.get(key) is not None:
             box[key] = payload[key]
@@ -569,6 +593,7 @@ class ClusterProgress:
     bbox_unreviewed_image_count: int
     relation_counts: dict[str, int]
     primary_view_set_count: int
+    optional_cluster_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         """Convert progress counts to a JSON-serializable dictionary."""
@@ -587,12 +612,14 @@ def progress(state: dict[str, Any], dataset: ReviewDataset) -> ClusterProgress:
     image_total = 0
     relation_counts = dict.fromkeys(RELATIONS, 0)
     primary_view_set = 0
+    optional = 0
     for cluster in dataset.clusters:
         record = cluster_state(state, cluster.cluster_id)
         if record.get("relation") in relation_counts:
             relation_counts[record["relation"]] += 1
         if record.get("primary_view") is not None:
             primary_view_set += 1
+        optional += bool(record.get("optional"))
         counts[record.get("status", STATUS_UNREVIEWED)] = (
             counts.get(record.get("status", STATUS_UNREVIEWED), 0) + 1
         )
@@ -624,4 +651,5 @@ def progress(state: dict[str, Any], dataset: ReviewDataset) -> ClusterProgress:
         bbox_unreviewed_image_count=bbox_counts[BBOX_STATUS_UNREVIEWED],
         relation_counts=relation_counts,
         primary_view_set_count=primary_view_set,
+        optional_cluster_count=optional,
     )

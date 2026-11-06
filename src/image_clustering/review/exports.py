@@ -75,6 +75,7 @@ def review_rows(
                     "reviewed": status != STATUS_UNREVIEWED,
                     "relation": record.get("relation"),
                     "primary_view": record.get("primary_view"),
+                    "optional": bool(record.get("optional")),
                 }
             )
         if not is_irregular:

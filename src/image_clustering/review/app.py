@@ -145,11 +145,22 @@ details.card summary{cursor:pointer;font-size:.72rem;font-weight:700;letter-spac
 details.card table{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:.5rem}
 details.card td{padding:.15rem 0;vertical-align:top}
 details.card td:first-child{white-space:nowrap;padding-right:.5rem}
-.draft-banner{position:sticky;top:3.4rem;z-index:5;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
-  height:3.4rem;overflow:auto;padding:.5rem .7rem;margin:0 0 .6rem;background:#fff4d1;border:1px solid #e2b74b;border-radius:.5rem;font-size:.82rem;font-weight:600}
-/* Keep the draft slot in normal flow while hiding its contents. Showing or hiding
-   the save controls must never move the progress line or image cards. */
-.draft-banner[hidden]{display:flex !important;visibility:hidden;pointer-events:none}
+/* The unsaved-edit bar floats over the page, so showing or hiding it never moves
+   the progress line or image cards and it takes no space while hidden. */
+.draft-banner{position:fixed;left:50%;bottom:1rem;transform:translateX(-50%);z-index:30;display:flex;gap:.5rem;align-items:center;
+  padding:.45rem .7rem;background:#fff4d1;border:1px solid #e2b74b;border-radius:.5rem;font-size:.82rem;font-weight:600;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);white-space:nowrap}
+.draft-banner[hidden]{display:none}
+.optional-toggle{width:100%;margin-top:.4rem;flex-direction:column;align-items:flex-start;gap:.1rem;white-space:normal;text-align:left;border-style:dashed}
+.optional-toggle b{display:flex;justify-content:space-between;width:100%;font-weight:600}
+.optional-toggle small{font-size:.7rem;color:var(--muted)}
+.optional-toggle[aria-pressed=true]{background:#f3f0ff;color:var(--ink);border:1px solid #7950f2;box-shadow:inset 0 0 0 1px #7950f2}
+.chip.optional{background:#f3f0ff;border:1px dashed #7950f2;color:#5636b8}
+.overlay .shape.optional{stroke-dasharray:1.5 4;stroke-linecap:round;fill-opacity:.04}
+.legend-strip{display:flex;flex-wrap:wrap;gap:.3rem 1rem;align-items:center;margin:0 0 .6rem;font-size:.75rem;color:var(--muted)}
+.legend-strip span{display:inline-flex;align-items:center;gap:.3rem}
+.legend-strip svg{display:block}
+.legend-strip button{font-size:.72rem;padding:.1rem .45rem}
 .filmstrip{display:flex;gap:.4rem;overflow-x:auto;padding:.6rem 0 0}
 .filmstrip button{padding:.15rem;border-width:2px;flex:0 0 auto}
 .filmstrip button[aria-current=true]{border-color:var(--accent)}
@@ -378,7 +389,8 @@ function renderProgress() {
         ? ` · relation: ${p.relation_counts.same_document} same doc, ${p.relation_counts.same_background_document} same background, `
           + `${p.relation_counts.different_document} different, ${p.relation_counts.unsure} unsure · `
           + `${p.primary_view_set_count} with primary view set`
-        : '');
+        : '')
+      + (p.optional_cluster_count ? ` · ${p.optional_cluster_count} optional` : '');
   }
   el('queue-position').textContent = state.queue.length
     ? `Cluster ${state.index + 1} / ${state.queue.length}`
@@ -491,7 +503,7 @@ function renderBoxes(canvas, image, boxes, editable) {
       svg.appendChild(bounds);
     }
     const shape = document.createElementNS(SVG_NS, 'polygon');
-    shape.setAttribute('class', `shape kind-${kind}${selected ? ' selected' : ''}`);
+    shape.setAttribute('class', `shape kind-${kind}${selected ? ' selected' : ''}${box.optional ? ' optional' : ''}`);
     shape.setAttribute('points', points.map((point) => point.join(',')).join(' '));
     shape.dataset.boxIndex = String(boxIndex);
     svg.appendChild(shape);
@@ -505,7 +517,7 @@ function renderBoxes(canvas, image, boxes, editable) {
     tag.className = `tag kind-${kind}` + (y0 / image.height < 0.04 ? ' inside' : '');
     [tag.style.left, tag.style.top] = pct([x0, y0]);
     const confidence = confidenceLabel(box);
-    tag.innerHTML = `${boxIndex + 1} ${BOX_KIND_LABELS[kind]} <span class='src'>· ${sourceLabel(box)}${confidence ? ` ${confidence}` : ''}</span>`;
+    tag.innerHTML = `${boxIndex + 1} ${BOX_KIND_LABELS[kind]}${box.optional ? ' (optional)' : ''} <span class='src'>· ${sourceLabel(box)}${confidence ? ` ${confidence}` : ''}</span>`;
     canvas.appendChild(tag);
     const corners = cornersOf(shapeOf(box));
     corners.forEach((point, corner) => {
@@ -547,7 +559,7 @@ function renderBoxPanel(cluster) {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = `box-row kind-${kind}` + (state.selectedBox === boxIndex ? ' selected' : '');
-    row.innerHTML = `<span class='sw'></span><span><span class='what'>${boxIndex + 1} · ${BOX_KIND_NAMES[kind]}</span>`
+    row.innerHTML = `<span class='sw'></span><span><span class='what'>${boxIndex + 1} · ${BOX_KIND_NAMES[kind]}${box.optional ? ' · optional' : ''}</span>`
       + `<span class='how'>${shapeLabel(box)} · ${sourceLabel(box)}</span></span><span class='conf'>${confidenceLabel(box)}</span>`;
     row.addEventListener('click', () => { state.selectedBox = boxIndex; render(); });
     list.appendChild(row);
@@ -556,7 +568,8 @@ function renderBoxPanel(cluster) {
   approve.innerHTML = status === 'approved' ? '✓ Boxes approved <kbd>b</kbd>' : 'Approve boxes <kbd>b</kbd>';
   approve.className = status === 'approved' ? '' : 'primary';
   const none = state.selectedBox === null || state.selectedBox >= boxes.length;
-  for (const id of ['box-kind', 'square-box', 'delete-box']) el(id).disabled = none;
+  for (const id of ['box-kind', 'square-box', 'delete-box', 'box-optional']) el(id).disabled = none;
+  el('box-optional').setAttribute('aria-pressed', String(!none && Boolean(boxes[state.selectedBox].optional)));
 }
 
 function renderDraftBanner() {
@@ -663,6 +676,19 @@ function renderFilmstrip(cluster) {
   return strip;
 }
 
+// One line above the captures saying what every mark means; the panel has the long version.
+const swatch = (body) => `<svg width='26' height='14'>${body}</svg>`;
+const LEGEND_STRIP = "<div class='legend-strip'>"
+  + `<span>${swatch("<rect x='1' y='1' width='24' height='12' fill='#2fb344' fill-opacity='.18' stroke='#2fb344' stroke-width='2'/>")}page of interest</span>`
+  + `<span>${swatch("<rect x='1' y='1' width='24' height='12' fill='#f03e3e' fill-opacity='.18' stroke='#f03e3e' stroke-width='2'/>")}occluder (sheet on top)</span>`
+  + `<span>${swatch("<rect x='1' y='1' width='24' height='12' fill='#748ffc' fill-opacity='.18' stroke='#748ffc' stroke-width='2'/>")}unlabelled</span>`
+  + `<span>${swatch("<polygon points='4,1 24,1 25,13 1,13' fill='none' stroke='#5b6b7b' stroke-width='2'/>")}solid = the shape</span>`
+  + `<span>${swatch("<rect x='1' y='1' width='24' height='12' fill='none' stroke='#5b6b7b' stroke-width='1.2' stroke-dasharray='4 3'/>")}dashed = its upright bbox</span>`
+  + `<span>${swatch("<rect x='1' y='1' width='24' height='12' fill='none' stroke='#5b6b7b' stroke-width='2' stroke-dasharray='1.5 3' stroke-linecap='round'/>")}dotted = optional</span>`
+  + `<span>${swatch("<rect x='2' y='2' width='22' height='10' fill='none' stroke='#5b6b7b' stroke-width='3.5'/>")}thick = selected</span>`
+  + "<button type='button' onclick=\"const d=document.getElementById('legend-card');d.open=true;d.scrollIntoView({block:'nearest'})\">more…</button>"
+  + '</div>';
+
 function render() {
   rebuildQueue();
   renderProgress();
@@ -684,6 +710,7 @@ function render() {
     ['rel-different', 'different_document'], ['rel-unsure', 'unsure']]) {
     el(id).setAttribute('aria-pressed', String(decision.relation === relation));
   }
+  el('optional').setAttribute('aria-pressed', String(Boolean(decision.optional)));
   const confidence = cluster.minimum_confidence === null
     ? 'no accepted registration'
     : `weakest link ${cluster.minimum_confidence.toFixed(3)}`;
@@ -693,10 +720,12 @@ function render() {
   panel.innerHTML =
     `<div class='cluster-head'><h2>${cluster.cluster_id}</h2><span class='chip ${decision.status}'>${decision.status}</span>`
     + `<span class='chip ${decision.relation || 'unset'}'>${RELATION_LABELS[decision.relation] || 'relation not set'}</span>`
-    + `<span class='chip ${decision.primary_view ? 'star' : 'unset'}'>${primaryLabel(cluster, decision)}</span></div>`
+    + `<span class='chip ${decision.primary_view ? 'star' : 'unset'}'>${primaryLabel(cluster, decision)}</span>`
+    + (decision.optional ? "<span class='chip optional'>◌ optional: poor example</span>" : '') + '</div>'
     + `<p class='meta'>${cluster.image_count} captures · folder <code>${cluster.source_folder}</code> · ${confidence}`
     + `${cluster.review_reasons.length ? ` · ${cluster.review_reasons.join('; ')}` : ''}`
-    + `${state.viewMode === 'focus' ? ` · capture ${state.focus + 1} of ${cluster.image_count}` : ''}</p>`;
+    + `${state.viewMode === 'focus' ? ` · capture ${state.focus + 1} of ${cluster.image_count}` : ''}</p>`
+    + LEGEND_STRIP;
   const members = document.createElement('div');
   members.className = 'members' + (state.viewMode === 'focus' ? ' single' : '');
   if (state.viewMode === 'focus') {
@@ -1108,6 +1137,24 @@ function nudgeSelectedBox(dx, dy, resize) {
   scheduleCommit(700);
 }
 
+// Optional = technically right but a poor example (a blank sheet on a blank page):
+// credit if a model finds it, no penalty if it does not. Never advances.
+async function toggleClusterOptional() {
+  const cluster = currentCluster();
+  if (!cluster) return;
+  await postClusterDecision(cluster.cluster_id, {action: 'optional', optional: !decisionFor(cluster.cluster_id).optional});
+  render();
+}
+
+function toggleSelectedBoxOptional() {
+  const cluster = currentCluster();
+  const image = focusedImage();
+  if (!cluster || !image || state.selectedBox === null || !currentBoxes(cluster, image)[state.selectedBox]) return;
+  const box = openDraft(cluster, image).boxes[state.selectedBox];
+  box.optional = !box.optional;
+  commitDraft();
+}
+
 function squareUpSelectedBox() {
   const cluster = currentCluster();
   const image = focusedImage();
@@ -1169,8 +1216,6 @@ function bindControls() {
   });
   el('toggle-focused').addEventListener('click', toggleFocused);
   el('view-mode').addEventListener('click', toggleViewMode);
-  el('prev-capture').addEventListener('click', () => flipCapture(-1));
-  el('next-capture').addEventListener('click', () => flipCapture(1));
   el('edit-mode').addEventListener('click', () => {
     if (state.editing) exitEditing();
     else { state.editing = true; render(); }
@@ -1184,6 +1229,8 @@ function bindControls() {
   el('delete-box').addEventListener('click', deleteSelectedBox);
   el('box-kind').addEventListener('click', toggleSelectedBoxKind);
   el('square-box').addEventListener('click', squareUpSelectedBox);
+  el('box-optional').addEventListener('click', toggleSelectedBoxOptional);
+  el('optional').addEventListener('click', toggleClusterOptional);
   el('undo').addEventListener('click', undo);
   el('draft-save').addEventListener('click', () => commitDraft());
   el('draft-cancel').addEventListener('click', () => cancelDraft());
@@ -1247,6 +1294,8 @@ function bindKeyboard() {
       case 'Tab': event.preventDefault(); selectNextBox(); break;
       case 't': case 'T': event.preventDefault(); toggleSelectedBoxKind(); break;
       case 'q': case 'Q': event.preventDefault(); squareUpSelectedBox(); break;
+      case 'l': case 'L': event.preventDefault(); toggleClusterOptional(); break;
+      case 'w': case 'W': event.preventDefault(); toggleSelectedBoxOptional(); break;
       case 'Enter': event.preventDefault(); if (hasDraft()) commitDraft(); break;
       case 'Escape': event.preventDefault(); exitEditing(); break;
       case 'Delete': case 'Backspace': event.preventDefault(); deleteSelectedBox(); break;
@@ -1347,6 +1396,7 @@ BODY = """
         <button type='button' id='rel-different' title='Different documents (key n); dissolves the grouping and advances'><b>Different <kbd>n</kbd></b><small>dissolves, advances</small></button>
         <button type='button' id='rel-unsure' title='Cannot tell (key u); marks irregular and advances'><b>Unsure <kbd>u</kbd></b><small>irregular, advances</small></button>
       </div>
+      <button type='button' id='optional' class='optional-toggle' aria-pressed='false' title='Technically right but a poor example, e.g. a blank sheet on a blank page: a model gets credit for finding it and no penalty for missing it (key l)'><b>◌ Optional: poor example <kbd>l</kbd></b><small>right, but e.g. blank on blank; no penalty if a model misses it</small></button>
       <h3 style='margin-top:.8rem'>2 · Which capture is unoccluded?</h3>
       <div class='row'>
         <button type='button' id='primary-focused' title='Mark the focused capture as the primary unoccluded view; press again to clear (key p)'>★ Focused capture <kbd>p</kbd></button>
@@ -1369,17 +1419,14 @@ BODY = """
         <button type='button' id='select-box' title='Select the next box on the focused capture (Tab)'>Next <kbd>Tab</kbd></button>
         <button type='button' id='box-kind' title='Selected box: page of interest ↔ occluder (key t)'>Page ↔ occluder <kbd>t</kbd></button>
         <button type='button' id='square-box' title='Turn the selected box back into an upright rectangle (key q)'>Make rectangle <kbd>q</kbd></button>
+        <button type='button' id='box-optional' aria-pressed='false' title='Selected box is optional: real but a poor example (blank on blank); no penalty when missed (key w)'>Optional box <kbd>w</kbd></button>
         <button type='button' id='delete-box' class='danger' title='Delete the selected box (Delete)'>Delete <kbd>Del</kbd></button>
         <button type='button' id='approve-boxes' class='primary' title='Approve the boxes on the focused capture (key b)'>Approve boxes <kbd>b</kbd></button>
       </div>
-      <div class='row'>
-        <button type='button' id='prev-capture' title='Previous capture in this cluster (Left arrow)'>◀ Capture <kbd>←</kbd></button>
-        <button type='button' id='next-capture' title='Next capture in this cluster (Right arrow)'>Capture <kbd>→</kbd> ▶</button>
-      </div>
-      <p class='hint'>Drag a corner on its own to make a trapezoid; hold <kbd>Shift</kbd> to keep it a rectangle. Drag a square edge handle to move that side, or the inside to move the whole box. A magnifier appears while you drag.</p>
+      <p class='hint'>Corner alone = trapezoid; <kbd>Shift</kbd> keeps a rectangle. Square handle moves a side; inside moves the box. A magnifier shows while you drag. <kbd>←</kbd> <kbd>→</kbd> switch capture.</p>
     </section>
-    <section class='card'>
-      <h3>What the outlines mean</h3>
+    <details class='card' id='legend-card'>
+      <summary>What the outlines mean</summary>
       <div class='legend'>
         <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' rx='1' fill='#2fb344' fill-opacity='.15' stroke='#2fb344' stroke-width='2'/></svg>
         <span><b style='color:#2a9a3c'>Green</b>: the page of interest (the document being matched)</span>
@@ -1393,9 +1440,11 @@ BODY = """
         <span><b>Dashed rectangle</b>: the upright bounding box of a tilted shape. Exported as the bbox; you don't edit it directly.</span>
         <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' fill='#f03e3e' fill-opacity='.25' stroke='#f03e3e' stroke-width='3.5'/></svg>
         <span><b>Thick outline</b>: the selected box (<kbd>Tab</kbd> cycles). Round handles are corners; square ones are sides.</span>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' fill='#f03e3e' fill-opacity='.05' stroke='#f03e3e' stroke-width='2' stroke-dasharray='1.5 3.5' stroke-linecap='round'/></svg>
+        <span><b>Dotted outline</b>: optional, a real box that is a poor example (blank on blank). Missing it costs a model nothing.</span>
       </div>
       <p class='hint'>The tag on each box gives its number, kind and source: <i>SAM via cropper/diff/gemini</i> is a machine proposal with its confidence; <i>your edit</i> means you changed it.</p>
-    </section>
+    </details>
     <details class='card'>
       <summary>All keyboard shortcuts</summary>
       <table>
@@ -1420,6 +1469,8 @@ BODY = """
         <tr><td><kbd>b</kbd></td><td>approve boxes on capture</td></tr>
         <tr><td><kbd>t</kbd></td><td>selected box: page of interest ↔ occluder (green / red)</td></tr>
         <tr><td><kbd>q</kbd></td><td>selected box back to an upright rectangle</td></tr>
+        <tr><td><kbd>l</kbd></td><td>cluster is optional: right but a poor example (no penalty if missed)</td></tr>
+        <tr><td><kbd>w</kbd></td><td>selected box is optional (dotted)</td></tr>
         <tr><td><kbd>Del</kbd></td><td>delete selected box</td></tr>
         <tr><td>arrows</td><td>nudge selected box</td></tr>
         <tr><td><kbd>Shift</kbd>+arrows</td><td>resize selected box</td></tr>
@@ -1428,15 +1479,15 @@ BODY = """
         <tr><td><kbd>Esc</kbd></td><td>cancel edit / clear selection</td></tr>
       </table>
     </details>
-    <section class='card'>
-      <h3>Finish the pass</h3>
+    <details class='card'>
+      <summary>Finish the pass</summary>
       <div class='row'>
         <button type='button' id='mark-remaining' title='Approve every cluster still unreviewed'>Mark remaining clusters OK</button>
         <button type='button' id='mark-remaining-boxes' title='Approve every box set still unreviewed'>Mark remaining boxes OK</button>
         <button type='button' id='export' title='Write corrected cluster and box manifests'>Export corrected manifests</button>
       </div>
       <p class='hint'>Dropping a 2-image cluster to one capture dissolves it automatically. Every change autosaves to <code id='decisions-path'></code></p>
-    </section>
+    </details>
   </aside>
 </main>
 <div id='loupe' hidden><canvas id='loupe-canvas' width='220' height='220'></canvas><span id='loupe-label'></span></div>
