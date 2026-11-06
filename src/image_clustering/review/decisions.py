@@ -354,15 +354,7 @@ def restore_cluster(
         normalized_boxes = None
         if boxes is not None:
             normalized_boxes = [
-                {
-                    "box_id": str(box.get("box_id") or f"box_{index + 1:03d}"),
-                    "bbox": list(
-                        validate_box(box.get("bbox"), image.width, image.height)
-                    ),
-                    "kind": str(box.get("kind") or "base_page"),
-                    "submission_id": box.get("submission_id"),
-                    "origin": str(box.get("origin") or "reviewer"),
-                }
+                normalize_box(box, index, image.width, image.height)
                 for index, box in enumerate(boxes)
             ]
         restored_images[image.image_id] = {
@@ -417,6 +409,65 @@ def validate_box(
     return x_min, y_min, x_max, y_max
 
 
+def validate_polygon(
+    polygon: Any,
+    width: int | None,
+    height: int | None,
+) -> list[list[int]] | None:
+    """Return an integer outline of at least three points inside the image, or None."""
+    if polygon is None:
+        return None
+    if not isinstance(polygon, (list, tuple)) or len(polygon) < 3:
+        raise ValueError("polygon must have at least three points")
+    points = []
+    for point in polygon:
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            raise ValueError("polygon points must be [x, y]")
+        try:
+            x, y = (int(round(float(value))) for value in point)
+        except (TypeError, ValueError) as error:
+            raise ValueError("polygon values must be numeric") from error
+        if x < 0 or y < 0:
+            raise ValueError("polygon must lie inside the image")
+        if (width is not None and x > int(width)) or (height is not None and y > int(height)):
+            raise ValueError("polygon exceeds the source image")
+        points.append([x, y])
+    return points
+
+
+def normalize_box(
+    payload: dict[str, Any],
+    index: int,
+    width: int | None,
+    height: int | None,
+) -> dict[str, Any]:
+    """Validate one reviewer box.
+
+    A box may carry a polygon: a 4-corner quad the reviewer edits (a trapezoid for a
+    page photographed at an angle) or a segmentation outline. The bbox is then the
+    polygon's bounds, so the two can never disagree.
+    """
+    polygon = validate_polygon(payload.get("polygon"), width, height)
+    if polygon is not None:
+        xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+        bbox = validate_box([min(xs), min(ys), max(xs), max(ys)], width, height)
+    else:
+        bbox = validate_box(payload.get("bbox"), width, height)
+    box = {
+        "box_id": str(payload.get("box_id") or f"box_{index + 1:03d}"),
+        "bbox": list(bbox),
+        "kind": str(payload.get("kind") or "base_page"),
+        "submission_id": payload.get("submission_id"),
+        "origin": str(payload.get("origin") or "reviewer"),
+    }
+    if polygon is not None:
+        box["polygon"] = polygon
+    for key in ("completeness", "confidence"):
+        if payload.get(key) is not None:
+            box[key] = payload[key]
+    return box
+
+
 def set_boxes(
     state: dict[str, Any],
     dataset: ReviewDataset,
@@ -433,16 +484,7 @@ def set_boxes(
     normalized: list[dict[str, Any]] = []
     for index, box in enumerate(boxes or []):
         payload = box if isinstance(box, dict) else {"bbox": box}
-        bbox = validate_box(payload.get("bbox"), image.width, image.height)
-        normalized.append(
-            {
-                "box_id": str(payload.get("box_id") or f"box_{index + 1:03d}"),
-                "bbox": list(bbox),
-                "kind": str(payload.get("kind") or "base_page"),
-                "submission_id": payload.get("submission_id"),
-                "origin": str(payload.get("origin") or "reviewer"),
-            }
-        )
+        normalized.append(normalize_box(payload, index, image.width, image.height))
     record = image_state(state, cluster_id, image_id)
     record["boxes"] = normalized
     record["bbox_status"] = BBOX_STATUS_EDITED

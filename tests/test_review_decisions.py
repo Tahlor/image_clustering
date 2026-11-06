@@ -209,6 +209,34 @@ def test_editing_boxes_marks_bboxes_edited_without_approving_the_cluster() -> No
     assert cluster_state(state, "cluster_00007")["status"] == "unreviewed"
 
 
+def test_a_quad_box_keeps_its_corners_and_takes_its_bbox_from_them() -> None:
+    dataset = build_dataset({"cluster_00007": 2})
+    state = empty_state()
+    image_id = dataset.cluster("cluster_00007").images[0].image_id
+    quad = [[20, 30], [300, 10], [320, 400], [5, 380]]
+
+    record = set_boxes(
+        state,
+        dataset,
+        "cluster_00007",
+        image_id,
+        [{"bbox": [0, 0, 1, 1], "polygon": quad, "kind": "base_page", "confidence": 0.9}],
+    )
+
+    box = record["boxes"][0]
+    assert box["polygon"] == quad
+    assert box["bbox"] == [5, 10, 320, 400]
+    assert box["confidence"] == 0.9
+
+
+@pytest.mark.parametrize("polygon", [[[0, 0], [10, 10]], [[0, 0], [10, 0], [-1, 5]], [[0, 0], [10, 0], ["a", 5]]])
+def test_unusable_polygons_are_rejected(polygon: list) -> None:
+    dataset = build_dataset({"cluster_00007": 2})
+    image_id = dataset.cluster("cluster_00007").images[0].image_id
+    with pytest.raises(ValueError):
+        set_boxes(empty_state(), dataset, "cluster_00007", image_id, [{"bbox": [0, 0, 5, 5], "polygon": polygon}])
+
+
 def test_mark_remaining_bboxes_ok_preserves_edited_state() -> None:
     dataset = build_dataset({"cluster_00008": 2})
     state = empty_state()

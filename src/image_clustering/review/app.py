@@ -16,109 +16,154 @@ from __future__ import annotations
 # ruff: noqa: E501
 
 STYLE = """
+:root{--bg:#eef1f5;--panel:#fff;--line:#d5dce5;--ink:#17212b;--muted:#5b6b7b;--accent:#1f6feb;
+  --page:#2fb344;--occluder:#f03e3e;--unlabelled:#748ffc;--stage:#1b2027}
 *{box-sizing:border-box}
-body{margin:0;font-family:system-ui,sans-serif;background:#eef1f5;color:#16202b}
-header.bar{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;
-  padding:.6rem .9rem;background:#132132;color:#f4f7fa;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-header.bar h1{font-size:1rem;margin:0 1rem 0 0;white-space:nowrap}
-.controls{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
-button{font:inherit;padding:.4rem .6rem;border:1px solid #7d93ab;border-radius:.3rem;background:#eaf1f8;
-  color:#16202b;cursor:pointer}
-button:hover{background:#dbe7f3}
-button:focus-visible{outline:3px solid #ffd166;outline-offset:2px}
-button[aria-pressed=true]{background:#1f6feb;border-color:#1f6feb;color:#fff}
+body{margin:0;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+code{font-size:.85em}
+kbd{font:600 .7rem/1 ui-monospace,Consolas,monospace;padding:.15rem .3rem;border:1px solid #b8c4d1;border-bottom-width:2px;
+  border-radius:.25rem;background:#fff;color:#33414f;margin-left:.15rem}
+button{font:inherit;font-size:.85rem;padding:.35rem .6rem;border:1px solid #c3cdd8;border-radius:.4rem;background:#fff;
+  color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;white-space:nowrap}
+button:hover{background:#f1f5fa;border-color:#9fb0c2}
+button:focus-visible{outline:3px solid #ffd166;outline-offset:1px}
+button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+button[aria-pressed=true] kbd{background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.5)}
 button:disabled{opacity:.45;cursor:not-allowed}
-button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:700}
-button.danger{background:#fbdcdc;border-color:#c0504d}
-kbd{font:inherit;font-size:.75rem;padding:0 .25rem;border:1px solid #97a9bd;border-radius:.2rem;background:#fff;color:#16202b}
-select,input[type=search]{font:inherit;padding:.35rem;border:1px solid #7d93ab;border-radius:.3rem}
-label.field{display:flex;flex-direction:column;gap:.15rem;font-size:.75rem;font-weight:600;color:#c9d6e4}
-.progress{font-size:.82rem;color:#425464;margin:.2rem 0 .6rem}
-.save-state{font-size:.82rem;font-weight:700}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button.danger{color:#b42318;border-color:#f1b5b0}
+button.danger:hover{background:#fdecea}
+select,input[type=search]{font:inherit;font-size:.85rem;padding:.3rem .4rem;border:1px solid #c3cdd8;border-radius:.35rem;background:#fff}
+/* top bar */
+header.top{position:sticky;top:0;z-index:20;display:flex;gap:1rem;align-items:center;padding:.5rem 1rem;
+  background:#111a24;color:#e8eef5;box-shadow:0 1px 0 rgba(255,255,255,.06),0 2px 10px rgba(0,0,0,.25)}
+header.top h1{font-size:.95rem;font-weight:700;margin:0;letter-spacing:.02em;white-space:nowrap}
+details.filters summary,#queue-position{white-space:nowrap}
+header.top button{background:#1f2b38;border-color:#33465a;color:#e8eef5}
+header.top button:hover{background:#2a3a4b}
+header.top kbd{background:#2a3a4b;color:#cfdbe7;border-color:#46607a}
+.nav{display:flex;gap:.4rem;align-items:center}
+#queue-position{font-weight:600;min-width:9rem;text-align:center;font-variant-numeric:tabular-nums}
+details.filters{position:relative}
+details.filters summary{cursor:pointer;list-style:none;padding:.35rem .6rem;border:1px solid #33465a;border-radius:.4rem;background:#1f2b38;font-size:.85rem}
+details.filters[open] summary{background:#2a3a4b}
+.filter-pop{position:absolute;top:2.4rem;left:0;display:grid;grid-template-columns:auto 1fr;gap:.45rem .7rem;align-items:center;
+  padding:.8rem;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:.5rem;box-shadow:0 10px 30px rgba(0,0,0,.25);min-width:22rem}
+.filter-pop label{font-size:.78rem;font-weight:600;color:var(--muted)}
+.spacer{flex:1}
+.save-state{font-size:.8rem;font-weight:600}
 .save-state.ok{color:#7ee2a8}
 .save-state.pending{color:#ffd166}
 .save-state.error{color:#ff9a9a}
-main{padding:1rem;display:grid;grid-template-columns:minmax(0,1fr) 17rem;gap:1rem;align-items:start}
-main.focus-mode{grid-template-columns:minmax(0,1fr)}
-main.focus-mode aside{display:none}
-.cluster{background:#fff;border:1px solid #c3cedb;border-radius:.4rem;padding:1rem}
-.cluster h2{margin:0 0 .2rem;font-size:1.1rem}
-.cluster .meta{margin:0 0 .6rem;font-size:.85rem;color:#425464}
-.status-chip{display:inline-block;padding:.1rem .5rem;border-radius:1rem;font-size:.75rem;font-weight:700;
-  border:1px solid #97a9bd;background:#f1f5f9}
-.status-chip.approved{background:#d8f5e3;border-color:#3fa96c}
-.status-chip.edited{background:#fdf0cf;border-color:#d8a72a}
-.status-chip.dissolved{background:#fbdcdc;border-color:#c0504d}
-.status-chip.irregular{background:#eee3ff;border-color:#7950f2}
-.relation-chip{display:inline-block;padding:.1rem .5rem;border-radius:1rem;font-size:.75rem;font-weight:700;
-  border:1px dashed #97a9bd;background:#fff}
-.relation-chip.same_document{background:#d8f5e3;border:1px solid #3fa96c}
-.relation-chip.same_background_document{background:#dff0ff;border:1px solid #1f6feb}
-.relation-chip.different_document{background:#fbdcdc;border:1px solid #c0504d}
-.relation-chip.unsure{background:#eee3ff;border:1px solid #7950f2}
-.member.primary{border-color:#d4a106;box-shadow:0 0 0 3px rgba(212,161,6,.35)}
-.primary-badge{padding:.1rem .4rem;border-radius:1rem;background:#ffe9a8;border:1px solid #d4a106;font-weight:700}
-.relation-bar button.relation{font-weight:700}
-.members{display:grid;grid-template-columns:repeat(auto-fit,minmax(19rem,1fr));gap:.8rem;margin-top:.6rem}
+/* layout */
+main{display:grid;grid-template-columns:minmax(0,1fr) 21rem;gap:1rem;padding:1rem;align-items:start}
+.workspace{min-width:0}
+.progress{font-size:.78rem;color:var(--muted);margin:0 0 .6rem}
+.cluster-head{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:0 0 .25rem}
+.cluster-head h2{font-size:1.05rem;margin:0 .3rem 0 0}
+.meta{margin:0 0 .7rem;font-size:.8rem;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:.25rem;padding:.08rem .5rem;border-radius:1rem;font-size:.72rem;font-weight:600;
+  border:1px solid #c3cdd8;background:#f4f6f9;color:#33414f;white-space:nowrap}
+.chip.approved,.chip.same_document{background:#e3f7e8;border-color:#7cc791;color:#1d6b33}
+.chip.edited{background:#fff4d6;border-color:#e2b74b;color:#7a5a00}
+.chip.dissolved,.chip.different_document{background:#fde8e6;border-color:#eb9a92;color:#a1281c}
+.chip.irregular,.chip.unsure{background:#efe8ff;border-color:#a991f0;color:#5636b8}
+.chip.same_background_document{background:#e3efff;border-color:#86b0f2;color:#1b4fa8}
+.chip.unset{border-style:dashed;background:#fff;color:var(--muted)}
+.chip.star{background:#fff3c4;border-color:#d4a106;color:#6b5000}
+.members{display:grid;grid-template-columns:repeat(auto-fit,minmax(20rem,1fr));gap:.8rem}
 .members.single{grid-template-columns:minmax(0,1fr)}
-.member{border:2px solid #cbd5e1;border-radius:.35rem;padding:.5rem;background:#f8fafc}
-.member.focused{border-color:#1f6feb;box-shadow:0 0 0 2px rgba(31,111,235,.25)}
-.member.excluded{background:#f3e6e6;border-color:#c0504d}
-.member.excluded .stage{opacity:.45}
-.member-head{display:flex;justify-content:space-between;gap:.4rem;align-items:baseline;font-size:.8rem;font-weight:700}
-.member-head .name{overflow-wrap:anywhere;font-weight:600}
-.stage{position:relative;display:flex;justify-content:center;align-items:flex-start;margin:.4rem 0;background:#dde4ec;-webkit-user-select:none;user-select:none;touch-action:none}
-.image-canvas{position:relative;width:100%;line-height:0}
-.stage img{display:block;width:100%;height:auto}
-.focus-mode .image-canvas{width:fit-content;max-width:100%}
-.focus-mode .stage img{max-height:calc(100vh - 15rem);max-width:100%;width:auto;margin:0}
-.stage.editing{cursor:crosshair}
-.box{position:absolute;border:2px solid #1f6feb;background:rgba(31,111,235,.12)}
-.box.editable{cursor:move}
-.box.selected{border-color:#e8590c;background:rgba(232,89,12,.16);z-index:2}
-.box.draft{border-style:dashed}
-.box.kind-base_page{border-color:#2f9e44;background:rgba(47,158,68,.08)}
-.box.kind-data_bearing_overlay{border-color:#c92a2a;background:rgba(201,42,42,.12)}
-.box.kind-base_page.selected,.box.kind-data_bearing_overlay.selected{border-color:#e8590c}
-.box .tag{position:absolute;top:-1.15rem;left:0;font-size:.66rem;background:#132132;color:#fff;padding:0 .25rem;white-space:nowrap}
-.handle{position:absolute;width:14px;height:14px;background:#fff;border:2px solid #1f6feb;border-radius:3px;z-index:3}
-.box.kind-base_page .handle{border-color:#2f9e44}
-.box.kind-data_bearing_overlay .handle{border-color:#c92a2a}
-.box.selected .handle{border-color:#e8590c;background:#ffe8d9}
-.box.direct{cursor:move}
-.poly-layer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
-.poly-layer polygon{fill:none;stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-dasharray:6 3}
-.poly-layer polygon.kind-base_page{stroke:#2f9e44}
-.poly-layer polygon.kind-data_bearing_overlay{stroke:#c92a2a}
-.handle[data-edge=nw]{left:-7px;top:-7px;cursor:nwse-resize}
-.handle[data-edge=ne]{right:-7px;top:-7px;cursor:nesw-resize}
-.handle[data-edge=sw]{left:-7px;bottom:-7px;cursor:nesw-resize}
-.handle[data-edge=se]{right:-7px;bottom:-7px;cursor:nwse-resize}
-.handle[data-edge=n]{left:50%;top:-7px;margin-left:-7px;cursor:ns-resize}
-.handle[data-edge=s]{left:50%;bottom:-7px;margin-left:-7px;cursor:ns-resize}
-.handle[data-edge=w]{left:-7px;top:50%;margin-top:-7px;cursor:ew-resize}
-.handle[data-edge=e]{right:-7px;top:50%;margin-top:-7px;cursor:ew-resize}
-.member-foot{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;font-size:.75rem}
-.bbox-chip{padding:.1rem .4rem;border-radius:1rem;border:1px solid #97a9bd;background:#fff;font-weight:700}
-.bbox-chip.approved{background:#d8f5e3;border-color:#3fa96c}
-.bbox-chip.edited{background:#fdf0cf;border-color:#d8a72a}
-.filmstrip{display:flex;gap:.4rem;overflow-x:auto;padding:.4rem 0;margin-top:.5rem}
-.filmstrip button{padding:.2rem;border-width:2px;flex:0 0 auto}
-.filmstrip button[aria-current=true]{border-color:#1f6feb}
-.filmstrip img{display:block;height:4.5rem;width:auto}
-.filmstrip .excluded-thumb{opacity:.4}
+.member{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.member.focused{border-color:var(--accent);box-shadow:0 0 0 2px rgba(31,111,235,.35)}
+.member.excluded .stage img{opacity:.35;filter:grayscale(1)}
+.member.primary{border-color:#d4a106;box-shadow:0 0 0 2px rgba(212,161,6,.45)}
+.member-head{display:flex;gap:.5rem;align-items:center;padding:.45rem .6rem;font-size:.8rem;border-bottom:1px solid var(--line)}
+.member-head .num{font-weight:700}
+.member-head .name{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.stage{position:relative;display:flex;justify-content:center;background:var(--stage);padding:1.4rem .6rem .6rem;
+  -webkit-user-select:none;user-select:none;touch-action:none}
+.image-canvas{position:relative;width:fit-content;max-width:100%;line-height:0}
+.stage img{display:block;max-width:100%;width:auto;height:auto;max-height:calc(100vh - 13rem)}
+.single .stage img{max-height:calc(100vh - 12rem)}
+.stage.editing,.stage.editing .shape{cursor:crosshair}
+.member-foot{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:.45rem .6rem;font-size:.78rem}
+.member-foot a{color:var(--muted);margin-left:auto}
+.member-foot button{font-size:.78rem;padding:.25rem .5rem}
+/* overlays: one SVG of shapes per capture, HTML handles and tags on top */
+.overlay{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.overlay .shape{pointer-events:all;cursor:move;stroke-width:2;vector-effect:non-scaling-stroke;fill-opacity:.1;stroke-linejoin:round}
+.overlay .shape.selected{stroke-width:3.5;fill-opacity:.2}
+.overlay .bounds{fill:none;stroke-width:1.2;stroke-dasharray:6 5;vector-effect:non-scaling-stroke;opacity:.9}
+.overlay .kind-base_page{stroke:var(--page);fill:var(--page)}
+.overlay .kind-data_bearing_overlay{stroke:var(--occluder);fill:var(--occluder)}
+.overlay .kind-reviewer{stroke:var(--unlabelled);fill:var(--unlabelled)}
+.overlay .bounds{fill:none}
+.kind-base_page{--c:var(--page)}
+.kind-data_bearing_overlay{--c:var(--occluder)}
+.kind-reviewer{--c:var(--unlabelled)}
+.tag{position:absolute;transform:translateY(-100%);font:600 11px/1.55 system-ui,sans-serif;padding:0 .4rem;border-radius:.25rem .25rem .25rem 0;
+  color:#fff;background:var(--c);white-space:nowrap;pointer-events:none;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.tag.inside{transform:none;border-radius:0 0 .25rem 0}
+.tag .src{font-weight:400;opacity:.9}
+.handle{position:absolute;z-index:3;width:10px;height:10px;transform:translate(-50%,-50%);border-radius:50%;background:#fff;
+  border:2px solid var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.45);cursor:grab}
+.handle:hover,.handle.active{width:16px;height:16px}
+.handle.selected{width:14px;height:14px}
+.handle.side{border-radius:2px;width:10px;height:10px;background:var(--c);border-color:#fff}
+.handle.side.selected{width:11px;height:11px}
+/* side panel */
+aside{position:sticky;top:3.6rem;display:flex;flex-direction:column;gap:.75rem;max-height:calc(100vh - 4.6rem);overflow:auto;padding-bottom:.5rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:.6rem;padding:.75rem .8rem;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.card h3{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 .55rem}
+.card p.hint{font-size:.75rem;color:var(--muted);margin:.5rem 0 0}
+.relations{display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+.relations button{flex-direction:column;align-items:flex-start;gap:.1rem;padding:.45rem .55rem;white-space:normal;text-align:left;border-left-width:4px}
+.relations button small{font-size:.7rem;color:var(--muted);font-weight:400}
+.relations button b{display:flex;justify-content:space-between;width:100%;font-weight:600}
+#rel-same{border-left-color:#3fa96c}
+#rel-background{border-left-color:#1f6feb}
+#rel-different{border-left-color:#d64535}
+#rel-unsure{border-left-color:#7950f2}
+.relations button[aria-pressed=true]{background:#eef4ff;color:var(--ink);border-color:#9fb0c2;box-shadow:inset 0 0 0 1px var(--accent)}
+.relations button[aria-pressed=true] small{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
+.row button{font-size:.8rem;padding:.3rem .5rem}
+.box-list{display:flex;flex-direction:column;gap:.3rem}
+.box-row{display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;align-items:center;padding:.35rem .5rem;border:1px solid var(--line);
+  border-radius:.4rem;cursor:pointer;font-size:.8rem;background:#fff;text-align:left;white-space:normal;width:100%}
+.box-row.selected{border-color:var(--accent);background:#eef4ff}
+.box-row .sw{width:14px;height:14px;border-radius:3px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 20%,transparent)}
+.box-row .what{font-weight:600}
+.box-row .how{display:block;font-size:.72rem;color:var(--muted);font-weight:400}
+.box-row .conf{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.75rem}
+.empty-boxes{font-size:.8rem;color:var(--muted)}
+.legend{display:grid;grid-template-columns:44px 1fr;gap:.45rem .6rem;align-items:center;font-size:.78rem}
+.legend svg{display:block}
+.legend .handle-demo{position:relative;width:44px;height:14px}
+.legend .handle-demo .handle{position:absolute;top:7px}
+details.card summary{cursor:pointer;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+details.card table{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:.5rem}
+details.card td{padding:.15rem 0;vertical-align:top}
+details.card td:first-child{white-space:nowrap;padding-right:.5rem}
 .draft-banner{position:sticky;top:3.4rem;z-index:5;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
-  height:3.4rem;overflow:auto;padding:.5rem .7rem;margin:0 0 .6rem;background:#fff4d1;border:2px solid #d8a72a;border-radius:.35rem;font-size:.85rem;font-weight:600}
+  height:3.4rem;overflow:auto;padding:.5rem .7rem;margin:0 0 .6rem;background:#fff4d1;border:1px solid #e2b74b;border-radius:.5rem;font-size:.82rem;font-weight:600}
 /* Keep the draft slot in normal flow while hiding its contents. Showing or hiding
    the save controls must never move the progress line or image cards. */
 .draft-banner[hidden]{display:flex !important;visibility:hidden;pointer-events:none}
-aside{background:#fff;border:1px solid #c3cedb;border-radius:.4rem;padding:.8rem;position:sticky;top:4.2rem}
-aside h3{margin:.2rem 0 .4rem;font-size:.9rem}
-aside table{width:100%;border-collapse:collapse;font-size:.78rem}
-aside td{padding:.12rem 0;vertical-align:top}
-aside td:first-child{white-space:nowrap;padding-right:.5rem}
-.hint{font-size:.78rem;color:#425464;margin:.5rem 0 0}
-.empty{padding:2rem;text-align:center;color:#425464}
+.filmstrip{display:flex;gap:.4rem;overflow-x:auto;padding:.6rem 0 0}
+.filmstrip button{padding:.15rem;border-width:2px;flex:0 0 auto}
+.filmstrip button[aria-current=true]{border-color:var(--accent)}
+.filmstrip img{display:block;height:4.5rem;width:auto}
+.filmstrip .excluded-thumb{opacity:.4}
+.empty{padding:2rem;text-align:center;color:var(--muted)}
+/* zoom loupe shown while a corner, edge or new box is dragged */
+#loupe{position:fixed;z-index:50;width:220px;height:220px;border-radius:50%;overflow:hidden;pointer-events:none;
+  border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.45);background:#111}
+#loupe[hidden]{display:none}
+#loupe canvas{display:block;width:220px;height:220px}
+#loupe-label{position:absolute;left:0;right:0;bottom:14px;text-align:center;font:600 10px/1 ui-monospace,Consolas,monospace;color:#fff;
+  text-shadow:0 0 3px #000,0 0 3px #000}
+@media (max-width:1000px){main{grid-template-columns:minmax(0,1fr)}aside{position:static;max-height:none}}
 """
 
 SCRIPT = r"""
@@ -183,7 +228,7 @@ function isExcluded(clusterId, imageId) {
 function savedBoxes(cluster, image) {
   const decision = imageDecision(cluster.cluster_id, image.image_id);
   const boxes = decision.boxes === null || decision.boxes === undefined ? image.boxes : decision.boxes;
-  return boxes.map((box) => ({...box, bbox: [...box.bbox], polygon_bbox: box.polygon_bbox || (box.polygon ? [...box.bbox] : null)}));
+  return boxes.map((box) => ({...box, bbox: [...box.bbox], polygon: box.polygon ? box.polygon.map((point) => [...point]) : null}));
 }
 
 // Single source of truth for geometry: the draft when one is open for this
@@ -218,7 +263,11 @@ async function commitDraft() {
   const image = cluster?.images.find((item) => item.image_id === draft.imageId);
   if (!cluster || !image) { state.draft = null; render(); return; }
   pushUndo(cluster.cluster_id);
-  const boxes = draft.boxes.map((box) => ({...box, bbox: box.bbox.map((value) => Math.round(value))}));
+  const boxes = draft.boxes.map((box) => ({
+    ...box,
+    bbox: box.bbox.map((value) => Math.round(value)),
+    polygon: box.polygon ? box.polygon.map((point) => point.map((value) => Math.round(value))) : null,
+  }));
   state.draft = null;
   try {
     const payload = await api(`/api/clusters/${encodeURIComponent(cluster.cluster_id)}/images/${encodeURIComponent(image.image_id)}/boxes`, {
@@ -319,26 +368,28 @@ function previewUrl(image, size) {
 
 function renderProgress() {
   const p = state.progress;
-  if (!p) return;
-  el('progress').textContent =
-    `${p.reviewed_cluster_count} of ${p.cluster_count} clusters reviewed `
-    + `(${p.approved_cluster_count} approved, ${p.edited_cluster_count} edited, `
-    + `${p.dissolved_cluster_count} dissolved, ${p.irregular_cluster_count} irregular); `
-    + `${p.bbox_approved_image_count} of ${p.image_count} images with approved boxes`
-    + (p.relation_counts
-      ? `; relation: ${p.relation_counts.same_document} same doc, ${p.relation_counts.same_background_document} same background, `
-        + `${p.relation_counts.different_document} different, ${p.relation_counts.unsure} unsure; `
-        + `${p.primary_view_set_count} with primary view set`
-      : '');
+  if (p) {
+    el('progress').textContent =
+      `${p.reviewed_cluster_count} of ${p.cluster_count} clusters reviewed `
+      + `(${p.approved_cluster_count} approved, ${p.edited_cluster_count} edited, `
+      + `${p.dissolved_cluster_count} dissolved, ${p.irregular_cluster_count} irregular) · `
+      + `${p.bbox_approved_image_count} of ${p.image_count} captures with approved boxes`
+      + (p.relation_counts
+        ? ` · relation: ${p.relation_counts.same_document} same doc, ${p.relation_counts.same_background_document} same background, `
+          + `${p.relation_counts.different_document} different, ${p.relation_counts.unsure} unsure · `
+          + `${p.primary_view_set_count} with primary view set`
+        : '');
+  }
   el('queue-position').textContent = state.queue.length
-    ? `Cluster ${state.index + 1} of ${state.queue.length} in queue`
-    : 'No clusters match the filters';
+    ? `Cluster ${state.index + 1} / ${state.queue.length}`
+    : 'No clusters match';
 }
-
-const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
 // Box kinds shared with the cropper: the page of interest and the covering (foreground) sheet.
 const BOX_KIND_LABELS = {base_page: 'page', data_bearing_overlay: 'occluder', reviewer: 'unlabelled'};
+const BOX_KIND_NAMES = {base_page: 'Page of interest', data_bearing_overlay: 'Occluder (sheet on top)', reviewer: 'Unlabelled'};
+const KIND_COLORS = {base_page: '#2fb344', data_bearing_overlay: '#f03e3e', reviewer: '#748ffc'};
+const kindOf = (box) => (KIND_COLORS[box.kind] ? box.kind : 'reviewer');
 
 // A drawn box is the page until the capture has one, then an occluder; t flips the selected box.
 function newBoxKind(boxes) {
@@ -356,55 +407,156 @@ function toggleSelectedBoxKind() {
   commitDraft();
 }
 
-// Segmentation outlines (e.g. SAM) are drawn only while their box is unchanged; an edited box makes them stale.
-function renderPolygons(stage, image, boxes) {
-  for (const node of [...stage.querySelectorAll('.poly-layer')]) node.remove();
-  const shapes = boxes.filter((box) => box.polygon && box.polygon.length >= 3 && box.polygon_bbox
-    && box.polygon_bbox.every((value, index) => Math.abs(value - box.bbox[index]) < 1));
-  if (!shapes.length) return;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'poly-layer');
-  svg.setAttribute('viewBox', `0 0 ${image.width} ${image.height}`);
-  svg.setAttribute('preserveAspectRatio', 'none');
-  for (const box of shapes) {
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    shape.setAttribute('points', box.polygon.map((point) => point.join(',')).join(' '));
-    shape.setAttribute('class', `kind-${box.kind}`);
-    svg.appendChild(shape);
-  }
-  stage.appendChild(svg);
+// Geometry. A box's shape is its polygon when it has one (a 4-corner quad the reviewer
+// edits, or a longer segmentation outline), otherwise its bbox rectangle. The bbox is
+// always the shape's bounds. Quads are kept in top-left, top-right, bottom-right,
+// bottom-left order so side handles know which corners they move.
+const rectQuad = ([x0, y0, x1, y1]) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+
+function shapeOf(box) {
+  return box.polygon && box.polygon.length >= 3 ? box.polygon : rectQuad(box.bbox);
 }
 
-function renderBoxes(stage, image, boxes, editable) {
-  for (const node of [...stage.querySelectorAll('.box')]) node.remove();
-  renderPolygons(stage, image, boxes);
-  boxes.forEach((box, boxIndex) => {
-    const [x0, y0, x1, y1] = box.bbox;
-    const node = document.createElement('div');
+function boundsOf(points) {
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
+function isRect(points) {
+  if (points.length !== 4) return false;
+  const [x0, y0, x1, y1] = boundsOf(points);
+  return points.every(([x, y]) => (Math.abs(x - x0) < 1 || Math.abs(x - x1) < 1) && (Math.abs(y - y0) < 1 || Math.abs(y - y1) < 1));
+}
+
+// The four extreme points of any outline, as an ordered quad; a SAM outline becomes its corners.
+function cornersOf(points) {
+  const pick = (score) => points.reduce((best, point) => (score(point) < score(best) ? point : best));
+  const quad = [pick(([x, y]) => x + y), pick(([x, y]) => y - x), pick(([x, y]) => -(x + y)), pick(([x, y]) => x - y)];
+  return new Set(quad).size === 4 ? quad.map((point) => [...point]) : rectQuad(boundsOf(points));
+}
+
+function setShape(box, points, image) {
+  box.polygon = points.map(([x, y]) => [clamp(x, 0, image.width), clamp(y, 0, image.height)]);
+  box.bbox = boundsOf(box.polygon);
+}
+
+function shapeLabel(box) {
+  const points = shapeOf(box);
+  if (isRect(points)) return 'rectangle';
+  return points.length === 4 ? '4-corner shape' : `outline, ${points.length} points`;
+}
+
+function sourceLabel(box) {
+  if (box.origin === 'reviewer') return 'your edit';
+  const source = String(box.completeness || '');
+  if (source.startsWith('sam:')) return `SAM via ${source.slice(4)}`;
+  return source || 'machine box';
+}
+
+function confidenceLabel(box) {
+  return box.origin !== 'reviewer' && typeof box.confidence === 'number' ? box.confidence.toFixed(2) : '';
+}
+
+function area(box) {
+  const [x0, y0, x1, y1] = box.bbox;
+  return (x1 - x0) * (y1 - y0);
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// One SVG of shapes (largest first, so a sheet on a page stays clickable) plus HTML
+// tags and handles. Every box shows its round corner handles, so one drag edits it;
+// the selected box also gets square side handles.
+function renderBoxes(canvas, image, boxes, editable) {
+  for (const node of [...canvas.querySelectorAll('.overlay, .tag, .handle')]) node.remove();
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'overlay');
+  svg.setAttribute('viewBox', `0 0 ${image.width} ${image.height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const order = boxes.map((box, index) => index).sort((a, b) => area(boxes[b]) - area(boxes[a]));
+  const pct = ([x, y]) => [`${(x / image.width) * 100}%`, `${(y / image.height) * 100}%`];
+  for (const boxIndex of order) {
+    const box = boxes[boxIndex];
+    const points = shapeOf(box);
+    const kind = kindOf(box);
     const selected = editable && state.selectedBox === boxIndex;
-    node.className = 'box direct' + (editable ? ' editable' : '') + (selected ? ' selected' : '')
-      + (hasDraft() ? ' draft' : '') + ` kind-${box.kind || 'reviewer'}`;
-    node.style.left = `${(x0 / image.width) * 100}%`;
-    node.style.top = `${(y0 / image.height) * 100}%`;
-    node.style.width = `${((x1 - x0) / image.width) * 100}%`;
-    node.style.height = `${((y1 - y0) / image.height) * 100}%`;
-    node.dataset.boxIndex = String(boxIndex);
-    const tag = document.createElement('span');
-    tag.className = 'tag';
-    tag.textContent = `${boxIndex + 1} ${BOX_KIND_LABELS[box.kind] || box.kind || 'box'} ${Math.round(x1 - x0)}×${Math.round(y1 - y0)}`;
-    node.appendChild(tag);
-    {
-      // Handles are always shown: one drag on any box edits it, no edit mode needed.
-      for (const edge of HANDLES) {
-        const handle = document.createElement('span');
-        handle.className = 'handle';
-        handle.dataset.edge = edge;
-        handle.dataset.boxIndex = String(boxIndex);
-        node.appendChild(handle);
-      }
+    if (!isRect(points)) {
+      const [x0, y0, x1, y1] = box.bbox;
+      const bounds = document.createElementNS(SVG_NS, 'rect');
+      bounds.setAttribute('class', `bounds kind-${kind}`);
+      bounds.setAttribute('x', x0); bounds.setAttribute('y', y0);
+      bounds.setAttribute('width', x1 - x0); bounds.setAttribute('height', y1 - y0);
+      svg.appendChild(bounds);
     }
-    stage.appendChild(node);
+    const shape = document.createElementNS(SVG_NS, 'polygon');
+    shape.setAttribute('class', `shape kind-${kind}${selected ? ' selected' : ''}`);
+    shape.setAttribute('points', points.map((point) => point.join(',')).join(' '));
+    shape.dataset.boxIndex = String(boxIndex);
+    svg.appendChild(shape);
+  }
+  canvas.appendChild(svg);
+  boxes.forEach((box, boxIndex) => {
+    const kind = kindOf(box);
+    const selected = editable && state.selectedBox === boxIndex;
+    const [x0, y0] = box.bbox;
+    const tag = document.createElement('span');
+    tag.className = `tag kind-${kind}` + (y0 / image.height < 0.04 ? ' inside' : '');
+    [tag.style.left, tag.style.top] = pct([x0, y0]);
+    const confidence = confidenceLabel(box);
+    tag.innerHTML = `${boxIndex + 1} ${BOX_KIND_LABELS[kind]} <span class='src'>· ${sourceLabel(box)}${confidence ? ` ${confidence}` : ''}</span>`;
+    canvas.appendChild(tag);
+    const corners = cornersOf(shapeOf(box));
+    corners.forEach((point, corner) => {
+      const handle = document.createElement('span');
+      handle.className = `handle corner kind-${kind}${selected ? ' selected' : ''}`;
+      handle.dataset.corner = String(corner);
+      handle.dataset.boxIndex = String(boxIndex);
+      handle.title = 'Drag this corner (Shift keeps a rectangle)';
+      [handle.style.left, handle.style.top] = pct(point);
+      canvas.appendChild(handle);
+    });
+    if (!selected) return;
+    corners.forEach((point, side) => {
+      const next = corners[(side + 1) % 4];
+      const handle = document.createElement('span');
+      handle.className = `handle side kind-${kind} selected`;
+      handle.dataset.side = String(side);
+      handle.dataset.boxIndex = String(boxIndex);
+      handle.title = 'Drag to move this side';
+      [handle.style.left, handle.style.top] = pct([(point[0] + next[0]) / 2, (point[1] + next[1]) / 2]);
+      canvas.appendChild(handle);
+    });
   });
+}
+
+function renderBoxPanel(cluster) {
+  const list = el('box-list');
+  list.innerHTML = '';
+  const image = cluster ? cluster.images[state.focus] : null;
+  el('box-panel-title').textContent = image ? `3 · Boxes on capture ${state.focus + 1}` : '3 · Boxes';
+  if (!image) return;
+  const boxes = currentBoxes(cluster, image);
+  const status = imageDecision(cluster.cluster_id, image.image_id).bbox_status;
+  if (!boxes.length) {
+    list.innerHTML = "<div class='empty-boxes'>No boxes. Press <kbd>e</kbd> and drag on the image to draw one.</div>";
+  }
+  boxes.forEach((box, boxIndex) => {
+    const kind = kindOf(box);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `box-row kind-${kind}` + (state.selectedBox === boxIndex ? ' selected' : '');
+    row.innerHTML = `<span class='sw'></span><span><span class='what'>${boxIndex + 1} · ${BOX_KIND_NAMES[kind]}</span>`
+      + `<span class='how'>${shapeLabel(box)} · ${sourceLabel(box)}</span></span><span class='conf'>${confidenceLabel(box)}</span>`;
+    row.addEventListener('click', () => { state.selectedBox = boxIndex; render(); });
+    list.appendChild(row);
+  });
+  const approve = el('approve-boxes');
+  approve.innerHTML = status === 'approved' ? '✓ Boxes approved <kbd>b</kbd>' : 'Approve boxes <kbd>b</kbd>';
+  approve.className = status === 'approved' ? '' : 'primary';
+  const none = state.selectedBox === null || state.selectedBox >= boxes.length;
+  for (const id of ['box-kind', 'square-box', 'delete-box']) el(id).disabled = none;
 }
 
 function renderDraftBanner() {
@@ -416,6 +568,8 @@ function renderDraftBanner() {
   }
 }
 
+const BBOX_STATUS_LABELS = {approved: '✓ boxes approved', edited: 'boxes edited', unreviewed: 'boxes not reviewed'};
+
 function renderMemberCard(cluster, image, imageIndex) {
   const excluded = isExcluded(cluster.cluster_id, image.image_id);
   const imageState = imageDecision(cluster.cluster_id, image.image_id);
@@ -426,8 +580,12 @@ function renderMemberCard(cluster, image, imageIndex) {
   const card = document.createElement('article');
   card.className = 'member' + (isFocused ? ' focused' : '') + (excluded ? ' excluded' : '') + (isPrimary ? ' primary' : '');
   card.innerHTML =
-    `<div class='member-head'><span><kbd>${imageIndex + 1}</kbd> #${image.sequence_index}</span>`
-    + `<span class='name'>${image.filename}</span></div>`
+    `<div class='member-head'><span class='num'>Capture ${imageIndex + 1}<kbd>${imageIndex + 1}</kbd></span>`
+    + `<span class='name' title='${image.filename}'>#${image.sequence_index} · ${image.filename}</span>`
+    + (isPrimary ? "<span class='chip star'>★ primary unoccluded</span>" : '')
+    + `<span class='chip ${imageState.bbox_status}'>${BBOX_STATUS_LABELS[imageState.bbox_status] || imageState.bbox_status}</span>`
+    + (excluded ? "<span class='chip dissolved'>excluded</span>" : '')
+    + '</div>'
     + `<div class='stage${editable ? ' editing' : ''}'><div class='image-canvas'></div></div>`
     + "<div class='member-foot'></div>";
   const stage = card.querySelector('.stage');
@@ -453,24 +611,20 @@ function renderMemberCard(cluster, image, imageIndex) {
   primary.type = 'button';
   primary.setAttribute('aria-pressed', String(isPrimary));
   primary.title = 'Mark this capture as the primary unoccluded view of the document (key p when focused)';
-  primary.textContent = isPrimary ? '★ Primary unoccluded' : 'Primary view';
+  primary.textContent = isPrimary ? '★ Primary unoccluded' : '☆ Primary view';
   primary.addEventListener('click', () => setPrimaryView(cluster, isPrimary ? null : image.image_id));
   foot.appendChild(primary);
-  const chip = document.createElement('span');
-  chip.className = `bbox-chip ${imageState.bbox_status}`;
-  chip.textContent = `boxes ${boxes.length} · ${imageState.bbox_status}`;
-  foot.appendChild(chip);
   const approve = document.createElement('button');
   approve.type = 'button';
   approve.title = 'Approve the boxes on this capture (key b)';
-  approve.textContent = 'Approve boxes';
+  approve.textContent = imageState.bbox_status === 'approved' ? 'Unapprove boxes' : 'Approve boxes';
   approve.addEventListener('click', () => approveBoxes(cluster, image, imageState.bbox_status !== 'approved'));
   foot.appendChild(approve);
   const link = document.createElement('a');
   link.href = previewUrl(image, 'edit');
   link.target = '_blank';
   link.rel = 'noreferrer';
-  link.textContent = 'open full preview';
+  link.textContent = 'open full preview ↗';
   foot.appendChild(link);
   card.addEventListener('pointerdown', () => {
     if (state.focus !== imageIndex && !state.dragging) {
@@ -521,10 +675,15 @@ function render() {
   const cluster = currentCluster();
   if (!cluster) {
     host.innerHTML = "<div class='empty'>No clusters match the current filters.</div>";
+    renderBoxPanel(null);
     return;
   }
   state.focus = Math.max(0, Math.min(state.focus, cluster.images.length - 1));
   const decision = decisionFor(cluster.cluster_id);
+  for (const [id, relation] of [['rel-same', 'same_document'], ['rel-background', 'same_background_document'],
+    ['rel-different', 'different_document'], ['rel-unsure', 'unsure']]) {
+    el(id).setAttribute('aria-pressed', String(decision.relation === relation));
+  }
   const confidence = cluster.minimum_confidence === null
     ? 'no accepted registration'
     : `weakest link ${cluster.minimum_confidence.toFixed(3)}`;
@@ -532,9 +691,9 @@ function render() {
   const panel = document.createElement('section');
   panel.className = 'cluster';
   panel.innerHTML =
-    `<h2>${cluster.cluster_id} <span class='status-chip ${decision.status}'>${decision.status}</span> `
-    + `<span class='relation-chip ${decision.relation || ''}'>${RELATION_LABELS[decision.relation] || 'relation not set'}</span> `
-    + `<span class='relation-chip'>${primaryLabel(cluster, decision)}</span></h2>`
+    `<div class='cluster-head'><h2>${cluster.cluster_id}</h2><span class='chip ${decision.status}'>${decision.status}</span>`
+    + `<span class='chip ${decision.relation || 'unset'}'>${RELATION_LABELS[decision.relation] || 'relation not set'}</span>`
+    + `<span class='chip ${decision.primary_view ? 'star' : 'unset'}'>${primaryLabel(cluster, decision)}</span></div>`
     + `<p class='meta'>${cluster.image_count} captures · folder <code>${cluster.source_folder}</code> · ${confidence}`
     + `${cluster.review_reasons.length ? ` · ${cluster.review_reasons.join('; ')}` : ''}`
     + `${state.viewMode === 'focus' ? ` · capture ${state.focus + 1} of ${cluster.image_count}` : ''}</p>`;
@@ -551,6 +710,7 @@ function render() {
     panel.appendChild(members);
   }
   host.appendChild(panel);
+  renderBoxPanel(cluster);
 }
 
 function stageToImage(stage, image, clientX, clientY) {
@@ -579,43 +739,135 @@ function resizeBox(bbox, edge, x, y, image) {
   return box;
 }
 
+// Map a shape onto new bounds, so keyboard resizing keeps a trapezoid's proportions.
+function fitToBounds(points, from, to) {
+  const sx = (to[2] - to[0]) / Math.max(from[2] - from[0], 1);
+  const sy = (to[3] - to[1]) / Math.max(from[3] - from[1], 1);
+  return points.map(([x, y]) => [to[0] + (x - from[0]) * sx, to[1] + (y - from[1]) * sy]);
+}
+
+// Corner drags move one corner freely (a trapezoid). With Shift the box stays a
+// rectangle: the two neighbouring corners follow along their shared sides.
+function dragCorner(quad, corner, x, y, keepRect) {
+  const next = quad.map((point) => [...point]);
+  if (!keepRect) { next[corner] = [x, y]; return next; }
+  const [x0, y0, x1, y1] = boundsOf(quad);
+  const left = corner === 0 || corner === 3 ? Math.min(x, x1 - MINIMUM_SIDE) : x0;
+  const right = corner === 1 || corner === 2 ? Math.max(x, x0 + MINIMUM_SIDE) : x1;
+  const top = corner === 0 || corner === 1 ? Math.min(y, y1 - MINIMUM_SIDE) : y0;
+  const bottom = corner === 2 || corner === 3 ? Math.max(y, y0 + MINIMUM_SIDE) : y1;
+  return rectQuad([left, top, right, bottom]);
+}
+
+// Side handle i sits between corners i and i+1 (top, right, bottom, left); it moves
+// both corners across the side: top and bottom vertically, right and left horizontally.
+function dragSide(quad, side, dx, dy) {
+  const next = quad.map((point) => [...point]);
+  const shift = side % 2 === 0 ? [0, dy] : [dx, 0];
+  for (const corner of [side, (side + 1) % 4]) {
+    next[corner] = [next[corner][0] + shift[0], next[corner][1] + shift[1]];
+  }
+  return next;
+}
+
+// The magnifier: a 4x view of the image around the point being placed, with every
+// box outline and a crosshair, drawn beside the cursor while a corner, side or new
+// box is dragged.
+const LOUPE_SIZE = 220;
+const LOUPE_ZOOM = 4;
+
+function showLoupe(stage, image, boxes, activeIndex, point, clientX, clientY) {
+  const picture = stage.querySelector('img');
+  if (!picture || !picture.naturalWidth) return;
+  const loupe = el('loupe');
+  const context = el('loupe-canvas').getContext('2d');
+  const shown = picture.getBoundingClientRect().width;
+  const k = picture.naturalWidth / image.width;  // source px -> preview px
+  const span = (LOUPE_SIZE / LOUPE_ZOOM) * (picture.naturalWidth / shown);  // preview px across the loupe
+  const scale = LOUPE_SIZE / span;
+  const sx = point[0] * k - span / 2;
+  const sy = point[1] * k - span / 2;
+  context.fillStyle = '#111';
+  context.fillRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
+  context.imageSmoothingEnabled = scale < 2.5;
+  context.drawImage(picture, sx, sy, span, span, 0, 0, LOUPE_SIZE, LOUPE_SIZE);
+  const map = ([x, y]) => [(x * k - sx) * scale, (y * k - sy) * scale];
+  boxes.forEach((box, boxIndex) => {
+    context.strokeStyle = KIND_COLORS[kindOf(box)];
+    context.lineWidth = boxIndex === activeIndex ? 2.5 : 1.25;
+    context.beginPath();
+    shapeOf(box).forEach((p, n) => { const [u, v] = map(p); if (n) context.lineTo(u, v); else context.moveTo(u, v); });
+    context.closePath();
+    context.stroke();
+  });
+  const c = LOUPE_SIZE / 2;
+  context.strokeStyle = 'rgba(255,255,255,.95)';
+  context.lineWidth = 1;
+  context.beginPath();
+  for (const [a, b] of [[[0, c], [c - 6, c]], [[c + 6, c], [LOUPE_SIZE, c]], [[c, 0], [c, c - 6]], [[c, c + 6], [c, LOUPE_SIZE]]]) {
+    context.moveTo(...a); context.lineTo(...b);
+  }
+  context.stroke();
+  context.strokeStyle = 'rgba(0,0,0,.8)';
+  context.strokeRect(c - 2.5, c - 2.5, 5, 5);
+  el('loupe-label').textContent = `${Math.round(point[0])}, ${Math.round(point[1])} px · ${LOUPE_ZOOM}×`;
+  const gap = 28;
+  let left = clientX + gap;
+  if (left + LOUPE_SIZE > window.innerWidth - 8) left = clientX - gap - LOUPE_SIZE;
+  let top = clientY - gap - LOUPE_SIZE;
+  if (top < 8) top = clientY + gap;
+  loupe.style.left = `${left}px`;
+  loupe.style.top = `${top}px`;
+  loupe.hidden = false;
+}
+
+function hideLoupe() {
+  el('loupe').hidden = true;
+}
+
 function attachBoxEditing(stage, cluster, image, canDraw) {
   const canvas = stage.querySelector('.image-canvas');
   stage.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
-    const boxNode = event.target.closest('.box');
-    const handle = event.target.classList.contains('handle') ? event.target : null;
-    // Outside edit mode a press on bare image only focuses the capture; boxes and handles still drag.
-    if (!canDraw && !boxNode && !handle) return;
+    const handle = event.target.closest('.handle');
+    const shapeNode = event.target.closest('.shape');
+    // Outside draw mode a press on bare image only focuses the capture; boxes and handles still drag.
+    if (!canDraw && !shapeNode && !handle) return;
     event.preventDefault();
     const freshDraft = !(state.draft && state.draft.clusterId === cluster.cluster_id && state.draft.imageId === image.image_id);
     const draft = openDraft(cluster, image);
     const [startX, startY] = stageToImage(stage, image, event.clientX, event.clientY);
     let mode = 'create';
-    let edge = 'se';
     let boxIndex;
+    let part = 0;
+    // In draw mode a press inside a box still draws (pages cover most of the image);
+    // a click there without a drag selects that box.
+    const pressedIndex = shapeNode ? Number(shapeNode.dataset.boxIndex) : null;
     if (handle) {
-      mode = 'resize';
-      edge = handle.dataset.edge;
+      mode = handle.dataset.corner !== undefined ? 'corner' : 'side';
+      part = Number(handle.dataset.corner ?? handle.dataset.side);
       boxIndex = Number(handle.dataset.boxIndex);
-    } else if (boxNode) {
+      handle.classList.add('active');
+    } else if (shapeNode && !canDraw) {
       mode = 'move';
-      boxIndex = Number(boxNode.dataset.boxIndex);
+      boxIndex = pressedIndex;
     } else {
       draft.boxes.push({
         box_id: `box_${draft.boxes.length + 1}`,
         bbox: [startX, startY, startX + MINIMUM_SIDE, startY + MINIMUM_SIDE],
+        polygon: null,
         kind: newBoxKind(draft.boxes),
         origin: 'reviewer',
       });
       boxIndex = draft.boxes.length - 1;
     }
-    state.selectedBox = boxIndex;
+    if (mode !== 'create') state.selectedBox = boxIndex;
     state.focus = Math.max(0, cluster.images.findIndex((item) => item.image_id === image.image_id));
     state.dragging = true;
     // Read the anchor from the draft at drag start, so a drag that follows an
     // earlier edit continues from the current geometry rather than a stale copy.
-    const anchor = [...draft.boxes[boxIndex].bbox];
+    const startShape = shapeOf(draft.boxes[boxIndex]).map((point) => [...point]);
+    const startQuad = cornersOf(startShape);
     stage.setPointerCapture?.(event.pointerId);
     let moved = false;
 
@@ -623,19 +875,34 @@ function attachBoxEditing(stage, cluster, image, canDraw) {
       const [x, y] = stageToImage(stage, image, moveEvent.clientX, moveEvent.clientY);
       const box = draft.boxes[boxIndex];
       if (!box) return;
+      if (!moved && Math.hypot(x - startX, y - startY) < 1) return;
       moved = true;
+      let focusPoint = [x, y];
       if (mode === 'create') {
         box.bbox = [Math.min(startX, x), Math.min(startY, y), Math.max(startX, x), Math.max(startY, y)];
-      } else if (mode === 'resize') {
-        box.bbox = resizeBox(anchor, edge, x, y, image);
+        state.selectedBox = boxIndex;
+      } else if (mode === 'corner') {
+        setShape(box, dragCorner(startQuad, part, x, y, moveEvent.shiftKey), image);
+        box.origin = 'reviewer';
+        focusPoint = box.polygon[part];
+      } else if (mode === 'side') {
+        setShape(box, dragSide(startQuad, part, x - startX, y - startY), image);
+        box.origin = 'reviewer';
+        const [a, b] = [box.polygon[part], box.polygon[(part + 1) % 4]];
+        focusPoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       } else {
-        const width = anchor[2] - anchor[0];
-        const height = anchor[3] - anchor[1];
-        const left = Math.max(0, Math.min(image.width - width, anchor[0] + (x - startX)));
-        const top = Math.max(0, Math.min(image.height - height, anchor[1] + (y - startY)));
-        box.bbox = [left, top, left + width, top + height];
+        // Moving keeps the whole outline, SAM points included.
+        const [x0, y0, x1, y1] = boundsOf(startShape);
+        const dx = clamp(x - startX, -x0, image.width - x1);
+        const dy = clamp(y - startY, -y0, image.height - y1);
+        const translated = startShape.map(([px, py]) => [px + dx, py + dy]);
+        if (draft.boxes[boxIndex].polygon) setShape(box, translated, image);
+        else box.bbox = boundsOf(translated);
+        box.origin = 'reviewer';
       }
       renderBoxes(canvas, image, draft.boxes, true);
+      canvas.querySelector(`.handle[data-box-index='${boxIndex}'][data-${mode === 'side' ? 'side' : 'corner'}='${part}']`)?.classList.add('active');
+      if (mode !== 'move') showLoupe(stage, image, draft.boxes, boxIndex, focusPoint, moveEvent.clientX, moveEvent.clientY);
       renderDraftBanner();
     };
 
@@ -643,13 +910,18 @@ function attachBoxEditing(stage, cluster, image, canDraw) {
       stage.removeEventListener('pointermove', onMove);
       stage.removeEventListener('pointerup', onUp);
       stage.removeEventListener('pointercancel', onCancel);
+      hideLoupe();
       state.dragging = false;
       if (cancelled) { cancelDraft(); return; }
       const box = draft.boxes[boxIndex];
       if (mode === 'create' && (!moved || box.bbox[2] - box.bbox[0] < MINIMUM_SIDE * 2 || box.bbox[3] - box.bbox[1] < MINIMUM_SIDE * 2)) {
         draft.boxes.splice(boxIndex, 1);
-        state.selectedBox = null;
-        if (!moved) { render(); return; }
+        state.selectedBox = moved ? null : pressedIndex;
+        if (!moved) {
+          if (freshDraft) state.draft = null;
+          render();
+          return;
+        }
       }
       // A click without a drag only selects: it must not save an unchanged box set as an edit.
       if (!moved && mode !== 'create') {
@@ -820,6 +1092,7 @@ function nudgeSelectedBox(dx, dy, resize) {
   const box = draft.boxes[state.selectedBox];
   if (!box) return;
   const stepSize = 8;
+  const old = [...box.bbox];
   if (resize) {
     box.bbox = resizeBox(box.bbox, 'se', box.bbox[2] + dx * stepSize, box.bbox[3] + dy * stepSize, image);
   } else {
@@ -829,8 +1102,21 @@ function nudgeSelectedBox(dx, dy, resize) {
     const top = Math.max(0, Math.min(image.height - height, box.bbox[1] + dy * stepSize));
     box.bbox = [left, top, left + width, top + height];
   }
+  if (box.polygon) setShape(box, fitToBounds(box.polygon, old, box.bbox), image);
+  box.origin = 'reviewer';
   render();
   scheduleCommit(700);
+}
+
+function squareUpSelectedBox() {
+  const cluster = currentCluster();
+  const image = focusedImage();
+  if (!cluster || !image || state.selectedBox === null) return;
+  if (!currentBoxes(cluster, image)[state.selectedBox]?.polygon) return;
+  const box = openDraft(cluster, image).boxes[state.selectedBox];
+  box.polygon = null;
+  box.origin = 'reviewer';
+  commitDraft();
 }
 
 function exitEditing() {
@@ -896,6 +1182,8 @@ function bindControls() {
   });
   el('select-box').addEventListener('click', selectNextBox);
   el('delete-box').addEventListener('click', deleteSelectedBox);
+  el('box-kind').addEventListener('click', toggleSelectedBoxKind);
+  el('square-box').addEventListener('click', squareUpSelectedBox);
   el('undo').addEventListener('click', undo);
   el('draft-save').addEventListener('click', () => commitDraft());
   el('draft-cancel').addEventListener('click', () => cancelDraft());
@@ -958,6 +1246,7 @@ function bindKeyboard() {
       }
       case 'Tab': event.preventDefault(); selectNextBox(); break;
       case 't': case 'T': event.preventDefault(); toggleSelectedBoxKind(); break;
+      case 'q': case 'Q': event.preventDefault(); squareUpSelectedBox(); break;
       case 'Enter': event.preventDefault(); if (hasDraft()) commitDraft(); break;
       case 'Escape': event.preventDefault(); exitEditing(); break;
       case 'Delete': case 'Backspace': event.preventDefault(); deleteSelectedBox(); break;
@@ -1005,106 +1294,152 @@ boot();
 """
 
 BODY = """
-<header class='bar'>
+<header class='top'>
   <h1>Cluster review</h1>
-  <div class='controls'>
-    <button type='button' id='prev' title='Previous cluster (key k)'>◀ Prev <kbd>k</kbd></button>
-    <button type='button' id='next' title='Next cluster (key j)'>Next <kbd>j</kbd> ▶</button>
-    <button type='button' id='approve' title='Mark this grouping correct and advance (key a)'>Mark OK <kbd>a</kbd></button>
-    <button type='button' id='dissolve' title='Reject the whole grouping and advance (key d)'>Dissolve <kbd>d</kbd></button>
-    <button type='button' id='mark-irregular' class='irregular' title='Mark this grouping irregular and exclude its images from training and validation (key i)'>Irregular <kbd>i</kbd></button>
-    <button type='button' id='toggle-focused' title='Include or exclude the focused capture (key x, or its number key)'>Toggle capture <kbd>x</kbd></button>
-    <button type='button' id='undo' title='Undo the last saved change (Ctrl+Z)'>Undo <kbd>Ctrl</kbd>+<kbd>Z</kbd></button>
-    <button type='button' id='reopen' title='Return this cluster to unreviewed (key r)'>Reopen <kbd>r</kbd></button>
+  <div class='nav'>
+    <button type='button' id='prev' title='Previous cluster (key k)'>◀ <kbd>k</kbd></button>
+    <span id='queue-position'></span>
+    <button type='button' id='next' title='Next cluster (key j)'><kbd>j</kbd> ▶</button>
   </div>
-  <div class='controls relation-bar'>
-    <button type='button' id='rel-same' class='relation' title='Literally the same document: same visible sheet, re-captured or with/without a cover (key s); approves the grouping'>Same document <kbd>s</kbd></button>
-    <button type='button' id='rel-background' class='relation' title='Same underlying base page, but a different foreground sheet on top (key g); approves the grouping'>Same background doc <kbd>g</kbd></button>
-    <button type='button' id='rel-different' class='relation' title='Different documents (key n); dissolves the grouping and advances'>Different <kbd>n</kbd></button>
-    <button type='button' id='rel-unsure' class='relation' title='Cannot tell (key u); marks irregular and advances'>Unsure <kbd>u</kbd></button>
-    <button type='button' id='primary-focused' title='Mark the focused capture as the primary unoccluded view; press again to clear (key p)'>Primary view = focused <kbd>p</kbd></button>
-    <button type='button' id='primary-none' title='No capture shows the document unoccluded (key o)'>No unoccluded view <kbd>o</kbd></button>
-  </div>
-  <div class='controls'>
-    <button type='button' id='view-mode' aria-pressed='false' title='Switch between side-by-side and full-screen single-capture view (key v)'>View: <span id='view-mode-label'>Side by side</span> <kbd>v</kbd></button>
-    <button type='button' id='prev-capture' title='Previous capture in this cluster (Left arrow)'>◀ Capture <kbd>←</kbd></button>
-    <button type='button' id='next-capture' title='Next capture in this cluster (Right arrow)'>Capture <kbd>→</kbd> ▶</button>
-    <button type='button' id='edit-mode' aria-pressed='false' title='Toggle bbox editing: drag empty space to create, drag a box to move, drag any edge or corner handle to resize (key e)'>Edit boxes <kbd>e</kbd></button>
-    <button type='button' id='select-box' title='Select the next box on the focused capture (Tab)'>Select box <kbd>Tab</kbd></button>
-    <button type='button' id='approve-boxes' title='Approve the boxes on the focused capture (key b)'>Approve boxes <kbd>b</kbd></button>
-    <button type='button' id='delete-box' class='danger' title='Delete the selected box (Delete)'>Delete box <kbd>Del</kbd></button>
-  </div>
-  <div class='controls'>
-    <label class='field'>Search<input id='search' type='search' placeholder='cluster, folder, reason'></label>
-    <label class='field'>Minimum size<select id='min-size'>
-      <option value='1'>all clusters</option><option value='2'>2+ images</option>
-      <option value='3'>3+ images</option><option value='4'>4+ images</option>
-      <option value='10'>10+ images</option></select></label>
-    <label class='field'>Sort<select id='sort'>
-      <option value='confidence-asc'>weakest confidence first</option>
-      <option value='confidence-desc'>strongest confidence first</option>
-      <option value='size-desc'>largest first</option><option value='size-asc'>smallest first</option>
-      <option value='folder'>source folder</option><option value='id'>cluster ID</option></select></label>
-    <label class='field'>Status<select id='status-filter'>
-      <option value=''>all</option><option value='unreviewed'>unreviewed</option>
-      <option value='reviewed'>reviewed</option><option value='approved'>approved</option>
-      <option value='edited'>edited</option><option value='dissolved'>dissolved</option>
-      <option value='irregular'>irregular</option>
-      <option value='needs-relation'>confirmed, relation not set</option>
-      <option value='needs-primary'>confirmed, primary view not set</option></select></label>
-  </div>
+  <details class='filters'><summary>Filter &amp; sort ▾</summary>
+    <div class='filter-pop'>
+      <label for='search'>Search</label><input id='search' type='search' placeholder='cluster, folder, reason'>
+      <label for='min-size'>Minimum size</label><select id='min-size'>
+        <option value='1'>all clusters</option><option value='2'>2+ images</option>
+        <option value='3'>3+ images</option><option value='4'>4+ images</option>
+        <option value='10'>10+ images</option></select>
+      <label for='sort'>Sort</label><select id='sort'>
+        <option value='confidence-asc'>weakest confidence first</option>
+        <option value='confidence-desc'>strongest confidence first</option>
+        <option value='size-desc'>largest first</option><option value='size-asc'>smallest first</option>
+        <option value='folder'>source folder</option><option value='id'>cluster ID</option></select>
+      <label for='status-filter'>Status</label><select id='status-filter'>
+        <option value=''>all</option><option value='unreviewed'>unreviewed</option>
+        <option value='reviewed'>reviewed</option><option value='approved'>approved</option>
+        <option value='edited'>edited</option><option value='dissolved'>dissolved</option>
+        <option value='irregular'>irregular</option>
+        <option value='needs-relation'>confirmed, relation not set</option>
+        <option value='needs-primary'>confirmed, primary view not set</option></select>
+    </div>
+  </details>
+  <button type='button' id='view-mode' aria-pressed='false' title='Switch between side-by-side and full-screen single-capture view (key v)'>View: <span id='view-mode-label'>Side by side</span> <kbd>v</kbd></button>
+  <span class='spacer'></span>
+  <button type='button' id='undo' title='Undo the last saved change (Ctrl+Z)'>Undo <kbd>Ctrl</kbd><kbd>Z</kbd></button>
   <span id='save-state' class='save-state ok' role='status' aria-live='polite'>Loading</span>
 </header>
 <main id='main'>
-  <div>
+  <section class='workspace'>
     <div id='draft-banner' class='draft-banner' role='status' aria-live='polite' hidden>
       <span id='draft-summary'></span>
       <button type='button' id='draft-save' class='primary' title='Save this box edit now (Enter)'>Save boxes <kbd>Enter</kbd></button>
       <button type='button' id='draft-cancel' title='Discard this box edit (Escape)'>Cancel <kbd>Esc</kbd></button>
       <span>Releasing the mouse saves automatically.</span>
     </div>
-    <p class='progress'><span id='queue-position'></span> · <span id='progress'></span></p>
+    <p class='progress' id='progress'></p>
     <div id='cluster-host'></div>
-  </div>
+  </section>
   <aside>
-    <h3>Keyboard</h3>
-    <table>
-      <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>next / previous cluster</td></tr>
-      <tr><td><kbd>v</kbd></td><td>side by side ↔ full screen</td></tr>
-      <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>flip between captures</td></tr>
-      <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>toggle that capture</td></tr>
-      <tr><td><kbd>x</kbd></td><td>toggle focused capture</td></tr>
-      <tr><td><kbd>a</kbd></td><td>mark cluster OK, advance</td></tr>
-      <tr><td><kbd>d</kbd></td><td>dissolve cluster, advance</td></tr>
-      <tr><td><kbd>i</kbd></td><td>mark irregular; exclude from training/validation, advance</td></tr>
-      <tr><td><kbd>r</kbd></td><td>reopen as unreviewed</td></tr>
-      <tr><td><kbd>s</kbd></td><td>same document (literally the same sheet)</td></tr>
-      <tr><td><kbd>g</kbd></td><td>same background document, different foreground sheet</td></tr>
-      <tr><td><kbd>n</kbd></td><td>different documents, advance</td></tr>
-      <tr><td><kbd>u</kbd></td><td>unsure, advance</td></tr>
-      <tr><td><kbd>p</kbd></td><td>focused capture is the primary unoccluded view (advances once relation is set)</td></tr>
-      <tr><td><kbd>o</kbd></td><td>no capture is unoccluded</td></tr>
-      <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>undo last change</td></tr>
-      <tr><td><kbd>e</kbd></td><td>draw mode (drag on the image to add a box); existing boxes are always draggable by their handles</td></tr>
-      <tr><td><kbd>Tab</kbd></td><td>select next box</td></tr>
-      <tr><td><kbd>b</kbd></td><td>approve boxes on capture</td></tr>
-      <tr><td><kbd>t</kbd></td><td>selected box: page of interest ↔ occluder (green / red)</td></tr>
-      <tr><td><kbd>Del</kbd></td><td>delete selected box</td></tr>
-      <tr><td>arrows</td><td>nudge selected box in edit mode</td></tr>
-      <tr><td><kbd>Shift</kbd>+arrows</td><td>resize selected box</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>save a pending box edit</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>cancel edit / clear selection</td></tr>
-    </table>
-    <p class='hint'>Select a box to get eight drag handles: four corners and four edges. Dropping a 2-image cluster to one capture dissolves it automatically. Editing membership marks the cluster reviewed; box approval is tracked separately.</p>
-    <h3>Finish the pass</h3>
-    <div class='controls'>
-      <button type='button' id='mark-remaining' title='Approve every cluster still unreviewed'>Mark remaining clusters OK</button>
-      <button type='button' id='mark-remaining-boxes' title='Approve every box set still unreviewed'>Mark remaining boxes OK</button>
-      <button type='button' id='export' title='Write corrected cluster and box manifests'>Export corrected manifests</button>
-    </div>
-    <p class='hint'>Autosaves to <code id='decisions-path'></code></p>
+    <section class='card'>
+      <h3>1 · Are these the same document?</h3>
+      <div class='relations'>
+        <button type='button' id='rel-same' title='Literally the same document: same visible sheet, re-captured or with/without a cover (key s); approves the grouping'><b>Same document <kbd>s</kbd></b><small>same sheet, maybe uncovered</small></button>
+        <button type='button' id='rel-background' title='Same underlying base page, but a different foreground sheet on top (key g); approves the grouping'><b>Same background <kbd>g</kbd></b><small>same page, different sheet on top</small></button>
+        <button type='button' id='rel-different' title='Different documents (key n); dissolves the grouping and advances'><b>Different <kbd>n</kbd></b><small>dissolves, advances</small></button>
+        <button type='button' id='rel-unsure' title='Cannot tell (key u); marks irregular and advances'><b>Unsure <kbd>u</kbd></b><small>irregular, advances</small></button>
+      </div>
+      <h3 style='margin-top:.8rem'>2 · Which capture is unoccluded?</h3>
+      <div class='row'>
+        <button type='button' id='primary-focused' title='Mark the focused capture as the primary unoccluded view; press again to clear (key p)'>★ Focused capture <kbd>p</kbd></button>
+        <button type='button' id='primary-none' title='No capture shows the document unoccluded (key o)'>None <kbd>o</kbd></button>
+      </div>
+      <h3 style='margin-top:.8rem'>Grouping</h3>
+      <div class='row'>
+        <button type='button' id='approve' title='Mark this grouping correct and advance (key a)'>Mark OK <kbd>a</kbd></button>
+        <button type='button' id='dissolve' title='Reject the whole grouping and advance (key d)'>Dissolve <kbd>d</kbd></button>
+        <button type='button' id='mark-irregular' class='irregular' title='Mark this grouping irregular and exclude its images from training and validation (key i)'>Irregular <kbd>i</kbd></button>
+        <button type='button' id='reopen' title='Return this cluster to unreviewed (key r)'>Reopen <kbd>r</kbd></button>
+        <button type='button' id='toggle-focused' title='Include or exclude the focused capture (key x, or its number key)'>Toggle capture <kbd>x</kbd></button>
+      </div>
+    </section>
+    <section class='card'>
+      <h3 id='box-panel-title'>3 · Boxes</h3>
+      <div id='box-list' class='box-list'></div>
+      <div class='row'>
+        <button type='button' id='edit-mode' aria-pressed='false' title='Draw mode: drag on the image to add a box (key e)'>✚ Draw box <kbd>e</kbd></button>
+        <button type='button' id='select-box' title='Select the next box on the focused capture (Tab)'>Next <kbd>Tab</kbd></button>
+        <button type='button' id='box-kind' title='Selected box: page of interest ↔ occluder (key t)'>Page ↔ occluder <kbd>t</kbd></button>
+        <button type='button' id='square-box' title='Turn the selected box back into an upright rectangle (key q)'>Make rectangle <kbd>q</kbd></button>
+        <button type='button' id='delete-box' class='danger' title='Delete the selected box (Delete)'>Delete <kbd>Del</kbd></button>
+        <button type='button' id='approve-boxes' class='primary' title='Approve the boxes on the focused capture (key b)'>Approve boxes <kbd>b</kbd></button>
+      </div>
+      <div class='row'>
+        <button type='button' id='prev-capture' title='Previous capture in this cluster (Left arrow)'>◀ Capture <kbd>←</kbd></button>
+        <button type='button' id='next-capture' title='Next capture in this cluster (Right arrow)'>Capture <kbd>→</kbd> ▶</button>
+      </div>
+      <p class='hint'>Drag a corner on its own to make a trapezoid; hold <kbd>Shift</kbd> to keep it a rectangle. Drag a square edge handle to move that side, or the inside to move the whole box. A magnifier appears while you drag.</p>
+    </section>
+    <section class='card'>
+      <h3>What the outlines mean</h3>
+      <div class='legend'>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' rx='1' fill='#2fb344' fill-opacity='.15' stroke='#2fb344' stroke-width='2'/></svg>
+        <span><b style='color:#2a9a3c'>Green</b>: the page of interest (the document being matched)</span>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' rx='1' fill='#f03e3e' fill-opacity='.15' stroke='#f03e3e' stroke-width='2'/></svg>
+        <span><b style='color:#d32f2f'>Red</b>: an occluder, a sheet lying on top of the page</span>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' rx='1' fill='#748ffc' fill-opacity='.15' stroke='#748ffc' stroke-width='2'/></svg>
+        <span><b style='color:#4c6ef5'>Blue</b>: unlabelled; press <kbd>t</kbd> to make it page or occluder</span>
+        <svg width='44' height='22'><polygon points='6,3 40,2 42,20 2,19' fill='#2fb344' fill-opacity='.15' stroke='#2fb344' stroke-width='2'/></svg>
+        <span><b>Solid outline</b>: the box's real shape (rectangle, 4-corner trapezoid, or the SAM outline). Exported as the polygon.</span>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' fill='none' stroke='#2fb344' stroke-width='1.2' stroke-dasharray='5 4'/><polygon points='9,3 38,2 42,20 2,19' fill='none' stroke='#2fb344' stroke-width='2'/></svg>
+        <span><b>Dashed rectangle</b>: the upright bounding box of a tilted shape. Exported as the bbox; you don't edit it directly.</span>
+        <svg width='44' height='22'><rect x='2' y='2' width='40' height='18' fill='#f03e3e' fill-opacity='.25' stroke='#f03e3e' stroke-width='3.5'/></svg>
+        <span><b>Thick outline</b>: the selected box (<kbd>Tab</kbd> cycles). Round handles are corners; square ones are sides.</span>
+      </div>
+      <p class='hint'>The tag on each box gives its number, kind and source: <i>SAM via cropper/diff/gemini</i> is a machine proposal with its confidence; <i>your edit</i> means you changed it.</p>
+    </section>
+    <details class='card'>
+      <summary>All keyboard shortcuts</summary>
+      <table>
+        <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>next / previous cluster</td></tr>
+        <tr><td><kbd>v</kbd></td><td>side by side ↔ full screen</td></tr>
+        <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>flip between captures</td></tr>
+        <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>toggle that capture</td></tr>
+        <tr><td><kbd>x</kbd></td><td>toggle focused capture</td></tr>
+        <tr><td><kbd>a</kbd></td><td>mark cluster OK, advance</td></tr>
+        <tr><td><kbd>d</kbd></td><td>dissolve cluster, advance</td></tr>
+        <tr><td><kbd>i</kbd></td><td>mark irregular; exclude from training/validation, advance</td></tr>
+        <tr><td><kbd>r</kbd></td><td>reopen as unreviewed</td></tr>
+        <tr><td><kbd>s</kbd></td><td>same document (literally the same sheet)</td></tr>
+        <tr><td><kbd>g</kbd></td><td>same background document, different foreground sheet</td></tr>
+        <tr><td><kbd>n</kbd></td><td>different documents, advance</td></tr>
+        <tr><td><kbd>u</kbd></td><td>unsure, advance</td></tr>
+        <tr><td><kbd>p</kbd></td><td>focused capture is the primary unoccluded view (advances once relation is set)</td></tr>
+        <tr><td><kbd>o</kbd></td><td>no capture is unoccluded</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>undo last change</td></tr>
+        <tr><td><kbd>e</kbd></td><td>draw mode (drag on the image to add a box); existing boxes are always draggable by their handles</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>select next box</td></tr>
+        <tr><td><kbd>b</kbd></td><td>approve boxes on capture</td></tr>
+        <tr><td><kbd>t</kbd></td><td>selected box: page of interest ↔ occluder (green / red)</td></tr>
+        <tr><td><kbd>q</kbd></td><td>selected box back to an upright rectangle</td></tr>
+        <tr><td><kbd>Del</kbd></td><td>delete selected box</td></tr>
+        <tr><td>arrows</td><td>nudge selected box</td></tr>
+        <tr><td><kbd>Shift</kbd>+arrows</td><td>resize selected box</td></tr>
+        <tr><td><kbd>Shift</kbd>+corner drag</td><td>keep the box a rectangle</td></tr>
+        <tr><td><kbd>Enter</kbd></td><td>save a pending box edit</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>cancel edit / clear selection</td></tr>
+      </table>
+    </details>
+    <section class='card'>
+      <h3>Finish the pass</h3>
+      <div class='row'>
+        <button type='button' id='mark-remaining' title='Approve every cluster still unreviewed'>Mark remaining clusters OK</button>
+        <button type='button' id='mark-remaining-boxes' title='Approve every box set still unreviewed'>Mark remaining boxes OK</button>
+        <button type='button' id='export' title='Write corrected cluster and box manifests'>Export corrected manifests</button>
+      </div>
+      <p class='hint'>Dropping a 2-image cluster to one capture dissolves it automatically. Every change autosaves to <code id='decisions-path'></code></p>
+    </section>
   </aside>
 </main>
+<div id='loupe' hidden><canvas id='loupe-canvas' width='220' height='220'></canvas><span id='loupe-label'></span></div>
 """
 
 

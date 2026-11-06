@@ -326,10 +326,10 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         assert "large || isFocused ? 'edit' : 'thumbnail'" not in page
         assert "previewUrl(image, 'edit')" in page
         assert "image-canvas" in page
-        assert ".focus-mode .image-canvas{width:fit-content;max-width:100%}" in page
+        assert ".image-canvas{position:relative;width:fit-content;max-width:100%" in page
         assert "renderBoxes(canvas, image, boxes, isFocused)" in page
-        # handles are on every box by default; a click without a drag must not save an edit
-        assert "Handles are always shown" in page
+        # corner handles are on every box; a click without a drag must not save an edit
+        assert "Every box shows its round corner handles" in page
         assert "if (!moved && mode !== 'create')" in page
         assert "attachBoxEditing(stage, cluster, image, editable)" in page
         assert "renderBoxes(canvas, image, draft.boxes, true)" in page
@@ -338,14 +338,17 @@ def test_app_exposes_both_view_modes_and_edit_affordances(tmp_path: Path) -> Non
         assert "id='undo'" in page
         for key in ("v", "i", "Tab", "Enter", "Esc", "Ctrl", "Z"):
             assert f"<kbd>{key}</kbd>" in page
-        for edge in ("nw", "ne", "sw", "se", "n]", "s]", "w]", "e]"):
-            assert edge in page
-        assert "data-edge=" in page
+        # corners move freely (trapezoids), Shift keeps a rectangle, and a loupe follows the drag
+        assert "function dragCorner(quad, corner, x, y, keepRect)" in page
+        assert "dragCorner(startQuad, part, x, y, moveEvent.shiftKey)" in page
+        assert "id='loupe'" in page and "showLoupe(stage, image, draft.boxes" in page
+        assert "What the outlines mean" in page and "Dashed rectangle" in page
+        assert "<kbd>q</kbd>" in page
     finally:
         running.close()
 
 
-def test_box_polygon_is_served_and_dropped_when_box_is_edited(tmp_path: Path) -> None:
+def test_box_polygon_is_served_and_kept_as_an_editable_quad(tmp_path: Path) -> None:
     _, output_root = build_run(tmp_path)
     crops = output_root / "reports" / "crops_for_recognizer.jsonl"
     row = json.loads(crops.read_text(encoding="utf-8"))
@@ -357,10 +360,18 @@ def test_box_polygon_is_served_and_dropped_when_box_is_edited(tmp_path: Path) ->
         cluster = dataset["clusters"][0]
         image = next(i for i in cluster["images"] if i["boxes"])
         assert image["boxes"][0]["polygon"] == [[5, 6], [60, 6], [60, 70], [5, 70]]
-        # a reviewer edit stores the box without the (now stale) outline
+        # a reviewer drags one corner: the trapezoid is stored and the bbox follows it
+        quad = [[5, 6], [60, 6], [64, 70], [10, 66]]
         saved = running.post(
             f"/api/clusters/{cluster['cluster_id']}/images/{image['image_id']}/boxes",
-            {"boxes": [{**image["boxes"][0], "bbox": [10, 10, 50, 60]}]},
+            {"boxes": [{**image["boxes"][0], "polygon": quad}]},
+        )
+        assert saved["image"]["boxes"][0]["polygon"] == quad
+        assert saved["image"]["boxes"][0]["bbox"] == [5, 6, 64, 70]
+        # squaring a box back to a rectangle sends no polygon
+        saved = running.post(
+            f"/api/clusters/{cluster['cluster_id']}/images/{image['image_id']}/boxes",
+            {"boxes": [{**image["boxes"][0], "polygon": None, "bbox": [10, 10, 50, 60]}]},
         )
         assert "polygon" not in saved["image"]["boxes"][0]
     finally:
