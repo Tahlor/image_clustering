@@ -39,6 +39,7 @@ from image_clustering.review.exports import write_review_exports
 from image_clustering.review.previews import (
     EDIT_MAX_DIMENSION,
     THUMBNAIL_MAX_DIMENSION,
+    ZOOM_MAX_DIMENSION,
     ensure_preview,
 )
 from image_clustering.review.store import DecisionStore
@@ -238,9 +239,10 @@ class ReviewService:
         resolved = str(Path(source).resolve())
         if resolved not in self._allowed_sources:
             raise PermissionError(f"Source image is not part of this run: {source}")
-        max_dimension = (
-            THUMBNAIL_MAX_DIMENSION if size == "thumbnail" else EDIT_MAX_DIMENSION
-        )
+        max_dimension = {
+            "thumbnail": THUMBNAIL_MAX_DIMENSION,
+            "zoom": ZOOM_MAX_DIMENSION,
+        }.get(size, EDIT_MAX_DIMENSION)
         return ensure_preview(
             self.dataset.output_root, Path(resolved), max_dimension=max_dimension
         )

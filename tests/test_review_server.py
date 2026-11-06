@@ -156,6 +156,10 @@ def test_server_serves_app_dataset_and_previews(tmp_path: Path) -> None:
         )
         assert status == 200
         assert body[:2] == b"\xff\xd8"
+        # the sharper rendering loaded when the reviewer zooms in
+        status, body = running.get(f"/preview?size=zoom&path={urllib.request.quote(source)}")
+        assert status == 200
+        assert body[:2] == b"\xff\xd8"
     finally:
         running.close()
 

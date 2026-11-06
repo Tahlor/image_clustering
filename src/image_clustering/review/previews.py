@@ -16,6 +16,8 @@ import cv2
 LOGGER = logging.getLogger(__name__)
 
 EDIT_MAX_DIMENSION = 1600
+# Loaded only when the reviewer zooms in, so fine print stays sharp.
+ZOOM_MAX_DIMENSION = 4096
 THUMBNAIL_MAX_DIMENSION = 480
 JPEG_QUALITY = 88
 

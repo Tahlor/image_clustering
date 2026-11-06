@@ -86,6 +86,13 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 21rem;gap:1rem;padding:1re
 .stage img{display:block;max-width:100%;width:auto;height:auto;max-height:calc(100vh - 13rem)}
 .single .stage img{max-height:calc(100vh - 12rem)}
 .stage.editing,.stage.editing .shape{cursor:crosshair}
+.stage{overflow:hidden}
+.image-canvas{transform-origin:0 0}
+.stage.zoomed{cursor:grab}
+.stage.panning,.stage.panning *{cursor:grabbing !important}
+.zoom-chip{position:absolute;top:.2rem;right:.4rem;z-index:6;font-size:.72rem;padding:.1rem .45rem;background:rgba(17,26,36,.85);
+  color:#fff;border-color:#46607a}
+.zoom-chip:hover{background:#111a24}
 .member-foot{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;padding:.45rem .6rem;font-size:.78rem}
 .member-foot a{color:var(--muted);margin-left:auto}
 .member-foot button{font-size:.78rem;padding:.25rem .5rem}
@@ -101,11 +108,11 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 21rem;gap:1rem;padding:1re
 .kind-base_page{--c:var(--page)}
 .kind-data_bearing_overlay{--c:var(--occluder)}
 .kind-reviewer{--c:var(--unlabelled)}
-.tag{position:absolute;transform:translateY(-100%);font:600 11px/1.55 system-ui,sans-serif;padding:0 .4rem;border-radius:.25rem .25rem .25rem 0;
+.tag{position:absolute;transform-origin:0 0;transform:scale(var(--inv,1)) translateY(-100%);font:600 11px/1.55 system-ui,sans-serif;padding:0 .4rem;border-radius:.25rem .25rem .25rem 0;
   color:#fff;background:var(--c);white-space:nowrap;pointer-events:none;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.4)}
-.tag.inside{transform:none;border-radius:0 0 .25rem 0}
+.tag.inside{transform:scale(var(--inv,1));border-radius:0 0 .25rem 0}
 .tag .src{font-weight:400;opacity:.9}
-.handle{position:absolute;z-index:3;width:10px;height:10px;transform:translate(-50%,-50%);border-radius:50%;background:#fff;
+.handle{position:absolute;z-index:3;width:10px;height:10px;transform:translate(-50%,-50%) scale(var(--inv,1));border-radius:50%;background:#fff;
   border:2px solid var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.45);cursor:grab}
 .handle:hover,.handle.active{width:16px;height:16px}
 .handle.selected{width:14px;height:14px}
@@ -192,6 +199,7 @@ const state = {
   dragging: false,
   undoStack: [],
   commitTimer: null,
+  zoom: {},
 };
 
 const el = (id) => document.getElementById(id);
@@ -354,6 +362,7 @@ function rebuildQueue() {
   clusters = clusters.sort((a, b) => {
     if (sortKey === 'confidence-asc') return confidence(a) - confidence(b) || a.cluster_id.localeCompare(b.cluster_id);
     if (sortKey === 'confidence-desc') return confidence(b) - confidence(a) || a.cluster_id.localeCompare(b.cluster_id);
+    if (sortKey === 'boxes-asc') return boxConfidence(a) - boxConfidence(b) || a.cluster_id.localeCompare(b.cluster_id);
     if (sortKey === 'size-desc') return b.image_count - a.image_count || a.cluster_id.localeCompare(b.cluster_id);
     if (sortKey === 'size-asc') return a.image_count - b.image_count || a.cluster_id.localeCompare(b.cluster_id);
     if (sortKey === 'folder') return a.source_folder.localeCompare(b.source_folder) || a.cluster_id.localeCompare(b.cluster_id);
@@ -361,6 +370,13 @@ function rebuildQueue() {
   });
   state.queue = clusters.map((cluster) => cluster.cluster_id);
   state.index = Math.min(state.index, Math.max(state.queue.length - 1, 0));
+}
+
+// The least sure machine box in a cluster (SAM's predicted IoU); clusters without one sort last.
+function boxConfidence(cluster) {
+  const values = cluster.images.flatMap((image) => image.boxes.map((box) => box.confidence))
+    .filter((value) => typeof value === 'number');
+  return values.length ? Math.min(...values) : 2;
 }
 
 function currentCluster() {
@@ -609,6 +625,7 @@ function renderMemberCard(cluster, image, imageIndex) {
   // Use the same edit-sized source for every main capture. Focus changes must
   // not make one side-by-side image sharper than its sibling.
   picture.src = previewUrl(image, 'edit');
+  if (zoomOf(image).z > 1.5) { picture.src = previewUrl(image, 'zoom'); picture.dataset.zoomed = '1'; }
   picture.draggable = false;
   canvas.appendChild(picture);
   if (image.width && image.height) renderBoxes(canvas, image, boxes, isFocused);
@@ -648,7 +665,120 @@ function renderMemberCard(cluster, image, imageIndex) {
     }
   });
   if (image.width && image.height) attachBoxEditing(stage, cluster, image, editable);
+  attachZoom(stage, image);
   return card;
+}
+
+// Manual zoom: the wheel over a capture zooms about the cursor, the middle button
+// (or the left button on bare image while zoomed) pans, a double-click or 0 resets.
+// Kept per capture across re-renders; handles and tags keep their screen size.
+const MAX_ZOOM = 12;
+
+function zoomOf(image) {
+  return state.zoom[image.image_id] || {z: 1, x: 0, y: 0};
+}
+
+function applyZoom(stage, image) {
+  const canvas = stage.querySelector('.image-canvas');
+  const view = zoomOf(image);
+  canvas.style.transform = view.z > 1 ? `translate(${view.x}px, ${view.y}px) scale(${view.z})` : '';
+  canvas.style.setProperty('--inv', String(1 / view.z));
+  stage.classList.toggle('zoomed', view.z > 1);
+  let chip = stage.querySelector('.zoom-chip');
+  if (view.z > 1 && !chip) {
+    chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'zoom-chip';
+    chip.title = 'Reset zoom (double-click the image, or key 0)';
+    chip.addEventListener('pointerdown', (event) => event.stopPropagation());
+    chip.addEventListener('click', () => { delete state.zoom[image.image_id]; applyZoom(stage, image); });
+    stage.appendChild(chip);
+  }
+  if (chip) {
+    if (view.z > 1) chip.textContent = `${Math.round(view.z * 100)}% · reset`;
+    else chip.remove();
+  }
+  // Past 1.5x the 1600 px preview gets soft; swap in a sharper rendering once.
+  const picture = canvas.querySelector('img');
+  if (view.z > 1.5 && picture && !picture.dataset.zoomed) {
+    picture.dataset.zoomed = '1';
+    const sharp = new Image();
+    sharp.onload = () => { picture.src = sharp.src; };
+    sharp.src = previewUrl(image, 'zoom');
+  }
+}
+
+function clampPan(view, width, height) {
+  view.x = clamp(view.x, width * (1 - view.z), 0);
+  view.y = clamp(view.y, height * (1 - view.z), 0);
+  return view;
+}
+
+function attachZoom(stage, image) {
+  const canvas = stage.querySelector('.image-canvas');
+  // Base (unzoomed) size of the canvas, read through the current transform.
+  const baseSize = () => {
+    const rect = canvas.getBoundingClientRect();
+    const z = zoomOf(image).z;
+    return [rect.width / z, rect.height / z, rect];
+  };
+  stage.addEventListener('wheel', (event) => {
+    if (event.ctrlKey) return;  // leave browser page zoom alone
+    event.preventDefault();
+    const view = {...zoomOf(image)};
+    const [width, height, rect] = baseSize();
+    const next = clamp(view.z * Math.exp(-event.deltaY * 0.0015), 1, MAX_ZOOM);
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
+    view.x += px - (px * next) / view.z;
+    view.y += py - (py * next) / view.z;
+    view.z = next;
+    if (next <= 1.001) delete state.zoom[image.image_id];
+    else state.zoom[image.image_id] = clampPan(view, width, height);
+    applyZoom(stage, image);
+  }, {passive: false});
+  stage.addEventListener('pointerdown', (event) => {
+    const bare = !event.target.closest('.handle, .shape, .zoom-chip');
+    const pan = event.button === 1 || (event.button === 0 && bare && zoomOf(image).z > 1 && !stage.classList.contains('editing'));
+    if (!pan) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const start = {...zoomOf(image)};
+    const [width, height] = baseSize();
+    const [sx, sy] = [event.clientX, event.clientY];
+    try { stage.setPointerCapture(event.pointerId); } catch { /* synthetic or finished pointer */ }
+    stage.classList.add('panning');
+    const move = (e) => {
+      if (start.z <= 1) return;
+      state.zoom[image.image_id] = clampPan({...start, x: start.x + e.clientX - sx, y: start.y + e.clientY - sy}, width, height);
+      applyZoom(stage, image);
+    };
+    const end = () => {
+      stage.removeEventListener('pointermove', move);
+      stage.removeEventListener('pointerup', end);
+      stage.removeEventListener('pointercancel', end);
+      stage.classList.remove('panning');
+    };
+    stage.addEventListener('pointermove', move);
+    stage.addEventListener('pointerup', end);
+    stage.addEventListener('pointercancel', end);
+  }, {capture: true});
+  // Middle-click autoscroll would fight the pan.
+  stage.addEventListener('mousedown', (event) => { if (event.button === 1) event.preventDefault(); });
+  stage.addEventListener('auxclick', (event) => { if (event.button === 1) event.preventDefault(); });
+  stage.addEventListener('dblclick', (event) => {
+    if (event.target.closest('.handle, .shape')) return;
+    delete state.zoom[image.image_id];
+    applyZoom(stage, image);
+  });
+  applyZoom(stage, image);
+}
+
+function resetZoom() {
+  const image = focusedImage();
+  if (!image || !state.zoom[image.image_id]) return;
+  delete state.zoom[image.image_id];
+  render();
 }
 
 function renderFilmstrip(cluster) {
@@ -812,7 +942,8 @@ function showLoupe(stage, image, boxes, activeIndex, point, clientX, clientY) {
   const context = el('loupe-canvas').getContext('2d');
   const shown = picture.getBoundingClientRect().width;
   const k = picture.naturalWidth / image.width;  // source px -> preview px
-  const span = (LOUPE_SIZE / LOUPE_ZOOM) * (picture.naturalWidth / shown);  // preview px across the loupe
+  // preview px across the loupe: 4x what is on screen, but never past 8 loupe px per preview px
+  const span = Math.max((LOUPE_SIZE / LOUPE_ZOOM) * (picture.naturalWidth / shown), LOUPE_SIZE / 8);
   const scale = LOUPE_SIZE / span;
   const sx = point[0] * k - span / 2;
   const sy = point[1] * k - span / 2;
@@ -1294,6 +1425,7 @@ function bindKeyboard() {
       case 'Tab': event.preventDefault(); selectNextBox(); break;
       case 't': case 'T': event.preventDefault(); toggleSelectedBoxKind(); break;
       case 'q': case 'Q': event.preventDefault(); squareUpSelectedBox(); break;
+      case '0': event.preventDefault(); resetZoom(); break;
       case 'l': case 'L': event.preventDefault(); toggleClusterOptional(); break;
       case 'w': case 'W': event.preventDefault(); toggleSelectedBoxOptional(); break;
       case 'Enter': event.preventDefault(); if (hasDraft()) commitDraft(); break;
@@ -1360,6 +1492,7 @@ BODY = """
       <label for='sort'>Sort</label><select id='sort'>
         <option value='confidence-asc'>weakest confidence first</option>
         <option value='confidence-desc'>strongest confidence first</option>
+        <option value='boxes-asc'>weakest proposed boxes first</option>
         <option value='size-desc'>largest first</option><option value='size-asc'>smallest first</option>
         <option value='folder'>source folder</option><option value='id'>cluster ID</option></select>
       <label for='status-filter'>Status</label><select id='status-filter'>
@@ -1423,7 +1556,7 @@ BODY = """
         <button type='button' id='delete-box' class='danger' title='Delete the selected box (Delete)'>Delete <kbd>Del</kbd></button>
         <button type='button' id='approve-boxes' class='primary' title='Approve the boxes on the focused capture (key b)'>Approve boxes <kbd>b</kbd></button>
       </div>
-      <p class='hint'>Corner alone = trapezoid; <kbd>Shift</kbd> keeps a rectangle. Square handle moves a side; inside moves the box. A magnifier shows while you drag. <kbd>←</kbd> <kbd>→</kbd> switch capture.</p>
+      <p class='hint'>Corner alone = trapezoid; <kbd>Shift</kbd> keeps a rectangle. Square handle moves a side; inside moves the box. A magnifier shows while you drag. <kbd>←</kbd> <kbd>→</kbd> switch capture. Wheel zooms, middle-drag pans, <kbd>0</kbd> resets.</p>
     </section>
     <details class='card' id='legend-card'>
       <summary>What the outlines mean</summary>
@@ -1475,6 +1608,9 @@ BODY = """
         <tr><td>arrows</td><td>nudge selected box</td></tr>
         <tr><td><kbd>Shift</kbd>+arrows</td><td>resize selected box</td></tr>
         <tr><td><kbd>Shift</kbd>+corner drag</td><td>keep the box a rectangle</td></tr>
+        <tr><td>mouse wheel</td><td>zoom the capture under the cursor</td></tr>
+        <tr><td>middle drag</td><td>pan (left drag on bare image also pans while zoomed)</td></tr>
+        <tr><td><kbd>0</kbd> / double-click</td><td>reset zoom</td></tr>
         <tr><td><kbd>Enter</kbd></td><td>save a pending box edit</td></tr>
         <tr><td><kbd>Esc</kbd></td><td>cancel edit / clear selection</td></tr>
       </table>
