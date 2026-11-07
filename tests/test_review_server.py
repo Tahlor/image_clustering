@@ -619,3 +619,14 @@ def test_optional_action_flags_the_cluster(tmp_path: Path) -> None:
         assert saved["progress"]["optional_cluster_count"] == 1
     finally:
         running.close()
+
+
+def test_review_tags_file_adds_searchable_reasons(tmp_path: Path) -> None:
+    _, output_root = build_run(tmp_path)
+    first = build_review_dataset(output_root).clusters[0].cluster_id
+    (output_root / "review_tags.json").write_text(
+        json.dumps({first: ["sample30"]}), encoding="utf-8"
+    )
+    tagged = {c.cluster_id: c.review_reasons for c in build_review_dataset(output_root).clusters}
+    assert tagged[first][-1] == "sample30"
+    assert all("sample30" not in r for cid, r in tagged.items() if cid != first)

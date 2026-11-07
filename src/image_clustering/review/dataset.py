@@ -219,6 +219,15 @@ def _cluster_review_reasons(
     return tuple(reasons)
 
 
+def _review_tags(output_root: Path) -> dict[str, list[str]]:
+    """Optional review_tags.json in the output root: {cluster_id: [tag, ...]}, shown and searchable as review
+    reasons (for example a sample to review first)."""
+    path = output_root / "review_tags.json"
+    if not path.is_file():
+        return {}
+    return {str(k): [str(t) for t in v] for k, v in json.loads(path.read_text(encoding="utf-8")).items()}
+
+
 def build_review_dataset(
     output_root: Path,
     clustering: ClusteringResult | None = None,
@@ -234,6 +243,7 @@ def build_review_dataset(
         clustering = load_result(clustering_json)
     dimensions = _load_dimensions(output_root)
     boxes_by_source = _boxes_by_source(output_root)
+    tags = _review_tags(output_root)
     clusters: list[ReviewCluster] = []
     for cluster in clustering.clusters:
         members = clustering.images_for(cluster.cluster_id)
@@ -271,7 +281,8 @@ def build_review_dataset(
                     confidences,
                     len(members),
                     largest_gap,
-                ),
+                )
+                + tuple(tags.get(cluster.cluster_id, ())),
             )
         )
     clusters.sort(key=review_sort_key)
